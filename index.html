@@ -33,6 +33,9 @@
   .theme-btn:hover{color:var(--text)}
   .theme-btn svg{width:19px;height:19px}
   .hidden{display:none!important}
+  .home{color:inherit;text-decoration:none}
+  #view pre.detail{max-height:none}
+  #view .snips{margin:0}
 
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
   .card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:10px}
@@ -121,7 +124,7 @@
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="wrap" id="main">
   <div class="head"><h1>OOC 메이커</h1><button class="theme-btn" id="themeBtn" aria-label="다크 모드 전환"></button></div>
 
   <div class="card" id="composer">
@@ -182,17 +185,9 @@
   </div>
 </div>
 
-<div class="modal" id="shared">
-  <div class="card">
-    <div class="name" id="sTitle"></div>
-    <div class="chips" id="sTags" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px"></div>
-    <pre class="detail" id="sBody"></pre>
-    <div class="bar">
-      <button class="btn" id="sClose">닫기</button>
-      <button class="btn soft" id="sCopy">복사</button>
-      <button class="btn main" id="sSave">저장</button>
-    </div>
-  </div>
+<div class="wrap hidden" id="view">
+  <div class="head"><h1><a class="home" id="homeLink" href="./">OOC 메이커</a></h1><button class="theme-btn" aria-label="다크 모드 전환"></button></div>
+  <div id="viewBody"></div>
 </div>
 
 <div class="modal" id="copyBox">
@@ -275,12 +270,10 @@ const ICON = {
 
 function setTheme(dark){
   document.documentElement.classList.toggle('dark', dark);
-  $('#themeBtn').innerHTML = dark ? ICON.sun : ICON.moon;
-  $('#themeBtn').title = dark ? '밝은 화면' : '다크 모드';
+  document.querySelectorAll('.theme-btn').forEach(b => { b.innerHTML = dark ? ICON.sun : ICON.moon; b.title = dark ? '밝은 화면' : '다크 모드'; });
   try { localStorage.setItem('ooc.theme', dark ? 'dark' : 'light'); } catch(e){}
 }
-$('#themeBtn').innerHTML = document.documentElement.classList.contains('dark') ? ICON.sun : ICON.moon;
-$('#themeBtn').onclick = () => setTheme(!document.documentElement.classList.contains('dark'));
+document.querySelectorAll('.theme-btn').forEach(b => { b.innerHTML = document.documentElement.classList.contains('dark') ? ICON.sun : ICON.moon; b.onclick = () => setTheme(!document.documentElement.classList.contains('dark')); });
 
 let items = [];
 let snips = [];
@@ -592,53 +585,103 @@ $('#shareNow').onclick = () => {
 };
 
 let incoming = null;
+function enterView(){
+  $('#main').classList.add('hidden'); $('#view').classList.remove('hidden');
+  $('#homeLink').href = location.pathname + location.search;
+  window.scrollTo(0, 0);
+}
+function leaveView(){
+  incoming = null; $('#viewBody').innerHTML = '';
+  $('#view').classList.add('hidden'); $('#main').classList.remove('hidden');
+}
+function viewMsg(msg){
+  enterView();
+  $('#viewBody').innerHTML = `<div class="card"><div class="empty" style="padding:8px 0">${esc(msg)}</div></div>`;
+}
+function viewLocked(data){
+  enterView();
+  $('#viewBody').innerHTML = `
+    <div class="card">
+      <div class="name">비밀번호</div>
+      <input type="text" id="vPw" autocomplete="off" autocapitalize="off" spellcheck="false" style="margin-top:10px">
+      <div class="bar"><button class="btn main" id="vOpen">열기</button></div>
+    </div>`;
+  const go = async () => {
+    const pw = $('#vPw').value; if (!pw) return;
+    $('#vOpen').disabled = true;
+    try { openShared(await unpack(await unlock(data, pw))); }
+    catch(e){ toast('비밀번호가 틀림'); $('#vPw').select(); $('#vOpen').disabled = false; }
+  };
+  $('#vOpen').onclick = go;
+  $('#vPw').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); go(); } });
+  setTimeout(() => $('#vPw').focus(), 50);
+}
 function openShared(o){
   const list = (Array.isArray(o.i) ? o.i : (o.c ? [o] : [])).map(normalize).filter(Boolean);
-  const sn = (Array.isArray(o.s) ? o.s.map(toSnip).filter(Boolean) : []).filter(x => !snips.some(y => y.l === x.l && y.x === x.x));
-  if (!list.length && !sn.length) { toast('링크가 비어 있음'); return; }
+  const sn = Array.isArray(o.s) ? o.s.map(toSnip).filter(Boolean) : [];
+  if (!list.length && !sn.length) { viewMsg('내용이 없는 링크'); return; }
   incoming = { list, sn };
-  const single = list.length === 1 && !sn.length;
-  $('#sCopy').classList.toggle('hidden', !single);
-  if (single) {
+  enterView();
+  let html = '';
+  if (list.length === 1 && !sn.length) {
     const it = list[0];
-    $('#sTitle').textContent = it.t;
-    $('#sTags').innerHTML = '';
-    $('#sBody').textContent = it.c;
+    html = `
+    <div class="card">
+      <div class="name">${esc(it.t)}</div>
+      <pre class="detail">${esc(it.c)}</pre>
+      <div class="bar">
+        <button class="btn soft" data-v="copy" data-i="0">복사</button>
+        <button class="btn main" data-v="save">내 목록에 저장</button>
+      </div>
+    </div>`;
   } else {
-    $('#sTitle').textContent = [list.length && `명령어 ${list.length}개`, sn.length && `문구 버튼 ${sn.length}개`].filter(Boolean).join(' · ');
-    $('#sTags').innerHTML = sn.map(x => `<span class="chip">${esc(x.l)}</span>`).join('');
-    $('#sBody').textContent = list.map(i => '· ' + i.t).join('\n');
-    $('#sBody').classList.toggle('hidden', !list.length);
+    if (list.length) html += `
+    <div class="card">
+      <div class="card-head"><div class="t">명령어<small>${list.length}개</small></div></div>
+      ${list.map((it, i) => `
+      <div class="item">
+        <div class="item-top">
+          <div class="info"><div class="name">${esc(it.t)}</div></div>
+          <div class="acts"><button class="ib copy" data-v="copy" data-i="${i}" title="복사">${ICON.copy}</button></div>
+        </div>
+        <div class="body">${esc(it.c)}</div>
+      </div>`).join('')}
+    </div>`;
+    if (sn.length) html += `
+    <div class="card">
+      <div class="card-head"><div class="t">문구 버튼<small>${sn.length}개</small></div></div>
+      <div class="snips">${sn.map(x => `<span class="snip" title="${esc(x.x)}">${esc(x.l)}</span>`).join('')}</div>
+    </div>`;
+    html += `<div class="bar" style="margin-top:0"><button class="btn main" data-v="save">전부 내 목록에 저장</button></div>`;
   }
-  if (single) $('#sBody').classList.remove('hidden');
-  $('#shared').classList.add('show');
+  $('#viewBody').innerHTML = html;
+  document.querySelectorAll('#viewBody .body').forEach(b => { if (b.scrollHeight > b.clientHeight + 2) b.classList.add('long'); });
 }
-function closeShared(){
-  $('#shared').classList.remove('show'); incoming = null;
-  history.replaceState(null, '', location.pathname + location.search);
-}
-$('#sClose').onclick = closeShared;
-$('#sCopy').onclick = () => incoming && incoming.list[0] && copyText(incoming.list[0].c);
-$('#sSave').onclick = () => {
-  if (!incoming) return;
-  const n = merge(incoming.list);
-  let m = 0;
-  incoming.sn.forEach(x => { if (!snips.some(o => o.l === x.l && o.x === x.x)) { snips.push(x); m++; } });
-  if (m) { saveSnips(); renderSnips(); }
-  saveItems(); render();
-  toast(n || m ? '저장됨' : '이미 다 있음'); closeShared();
+$('#viewBody').onclick = e => {
+  const body = e.target.closest('.body');
+  if (body) { if (body.classList.contains('long')) body.classList.toggle('open'); return; }
+  const btn = e.target.closest('[data-v]'); if (!btn || !incoming) return;
+  if (btn.dataset.v === 'copy') {
+    const it = incoming.list[+btn.dataset.i]; if (!it) return;
+    copyText(it.c);
+    if (btn.classList.contains('ib')) { btn.innerHTML = ICON.done; setTimeout(() => { btn.innerHTML = ICON.copy; }, 1200); }
+  } else if (btn.dataset.v === 'save') {
+    const n = merge(incoming.list);
+    let m = 0;
+    incoming.sn.forEach(x => { if (!snips.some(o => o.l === x.l && o.x === x.x)) { snips.push(x); m++; } });
+    if (m) { saveSnips(); renderSnips(); }
+    saveItems(); render();
+    toast(n || m ? '저장됨' : '이미 다 있음');
+    btn.textContent = '저장됨'; btn.disabled = true;
+  }
 };
-$('#shared').addEventListener('click', e => { if (e.target.id === 'shared') closeShared(); });
 document.addEventListener('keydown', e => {
-  if (e.key !== 'Escape') return;
-  if ($('#linkBox').classList.contains('show')) closeLink();
-  else if ($('#shared').classList.contains('show')) closeShared();
+  if (e.key === 'Escape' && $('#linkBox').classList.contains('show')) closeLink();
 });
 let lockedData = '', lockPost = null;
 function closeLock(){
   $('#lockBox').classList.remove('show'); lockedData = '';
-  if (lockPost) { lockPost = null; return; }
-  history.replaceState(null, '', location.pathname + location.search);
+  lockPost = null;
 }
 async function tryUnlock(){
   const pw = $('#uPw').value; if (!pw || !lockedData) return;
@@ -787,14 +830,11 @@ $('#postBtn').onclick = async () => {
 async function checkHash(){
   const h = location.hash;
   try {
-    if (h.startsWith('#e=')) {
-      lockedData = h.slice(3); $('#uPw').value = '';
-      $('#lockBox').classList.add('show');
-      setTimeout(() => $('#uPw').focus(), 50);
-    }
+    if (h.startsWith('#e=')) viewLocked(h.slice(3));
     else if (h.startsWith('#p=')) openShared(await unpack(h.slice(3)));
     else if (h.startsWith('#s=')) openShared(legacyDec(h.slice(3)));
-  } catch(e){ toast('링크가 깨져 있음'); }
+    else leaveView();
+  } catch(e){ viewMsg('링크가 깨져 있음'); }
 }
 window.addEventListener('hashchange', checkHash);
 
