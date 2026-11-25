@@ -55,10 +55,13 @@
   @media (max-width:480px){ #fBody{min-height:150px;height:190px} }
   .fields{margin-bottom:8px}
 
-  .snips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+  .snips{--g:6px;display:flex;flex-wrap:wrap;gap:var(--g);margin-bottom:8px}
   .snips .snip{flex:1 1 auto;text-align:center}
-  .snip-br{flex-basis:100%;height:0}
-  @media (max-width:480px){ .snips{gap:5px} .snip{padding:4px 8px} .snips.editing .snip{padding-right:22px} .snip .del{right:6px} }
+  .snip-br{flex-basis:100%;height:0;margin-top:calc(-1 * var(--g))}
+  .snips.measure .snip{flex:none!important}
+  .btn.icon{flex:none;width:46px;padding:0;display:flex;align-items:center;justify-content:center;color:var(--sub)}
+  .btn.icon svg{width:18px;height:18px}
+  @media (max-width:480px){ .snips{--g:5px} .snip{padding:4px 8px} .snips.editing .snip{padding-right:22px} .snip .del{right:6px} }
   .snip{position:relative;font:inherit;font-size:13px;padding:4px 11px;border-radius:20px;border:0;background:var(--accent-soft);color:var(--ok);cursor:pointer;white-space:nowrap;-webkit-user-select:none;user-select:none}
   .snip:hover{filter:brightness(.97)}
   html.dark .snip:hover{filter:brightness(1.15)}
@@ -156,7 +159,7 @@
     <textarea id="fBody" spellcheck="false"></textarea>
     <div class="count" id="charCount">0자</div>
     <div class="bar">
-      <button class="btn" id="clearBtn">비우기</button>
+      <button class="btn icon" id="clearBtn" title="비우기" aria-label="비우기"></button>
       <button class="btn" id="shareNow">공유</button>
       <button class="btn soft" id="copyNow">복사</button>
       <button class="btn main" id="saveBtn">저장</button>
@@ -295,6 +298,7 @@ function setTheme(dark){
   document.querySelectorAll('.theme-btn').forEach(b => { b.innerHTML = dark ? ICON.sun : ICON.moon; b.title = dark ? '밝은 화면' : '다크 모드'; });
   try { localStorage.setItem('ooc.theme', dark ? 'dark' : 'light'); } catch(e){}
 }
+$('#clearBtn').innerHTML = ICON.del;
 document.querySelectorAll('.theme-btn').forEach(b => { b.innerHTML = document.documentElement.classList.contains('dark') ? ICON.sun : ICON.moon; b.onclick = () => setTheme(!document.documentElement.classList.contains('dark')); });
 
 let items = [];
@@ -400,7 +404,34 @@ function renderSnips(){
     prev = k;
     return br + `<button class="snip${PAIRS[s.l] ? ' mono' : ''}${i === snipIdx ? ' sel' : ''}" data-i="${i}" title="${esc(s.x)}">${esc(s.l)}<span class="del">×</span></button>`;
   }).join('');
+  layoutSnips();
 }
+function layoutSnips(){
+  const box = $('#snips');
+  box.querySelectorAll('.snip-br.auto').forEach(e => e.remove());
+  const W = box.clientWidth; if (!W) return;
+  const gap = parseFloat(getComputedStyle(box).columnGap) || 6;
+  const groups = [[]];
+  [...box.children].forEach(el => { if (el.classList.contains('snip-br')) groups.push([]); else groups[groups.length - 1].push(el); });
+  box.classList.add('measure');
+  const widths = groups.map(g => g.map(e => e.getBoundingClientRect().width));
+  box.classList.remove('measure');
+  groups.forEach((g, gi) => {
+    const w = widths[gi]; if (g.length < 3) return;
+    let rows = 1, cur = 0;
+    w.forEach(x => { if (cur && cur + gap + x > W) { rows++; cur = x; } else cur = cur ? cur + gap + x : x; });
+    if (rows < 2) return;
+    const per = Math.ceil(g.length / rows);
+    for (let i = 0; i < g.length; i += per) {
+      const part = w.slice(i, i + per);
+      if (part.reduce((a, b) => a + b, 0) + gap * (part.length - 1) > W) return;
+    }
+    for (let i = per; i < g.length; i += per) { const br = document.createElement('i'); br.className = 'snip-br auto'; g[i].before(br); }
+  });
+}
+let layoutTimer;
+window.addEventListener('resize', () => { clearTimeout(layoutTimer); layoutTimer = setTimeout(layoutSnips, 100); });
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(layoutSnips);
 let snipIdx = -1;
 function resetSnipForm(){
   snipIdx = -1;
@@ -426,6 +457,7 @@ $('#snips').onclick = e => {
 };
 $('#snipEdit').onclick = () => {
   const on = $('#snips').classList.toggle('editing');
+  setTimeout(layoutSnips, 0);
   $('#snipAdd').classList.toggle('hidden', !on);
   $('#snipEdit').textContent = on ? '완료' : '버튼 편집';
   resetSnipForm();
