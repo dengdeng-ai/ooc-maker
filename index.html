@@ -34,6 +34,9 @@
   .theme-btn svg{width:19px;height:19px}
   .hidden{display:none!important}
   .home{color:inherit;text-decoration:none}
+  .title-row{display:flex;align-items:center;gap:6px}
+  .back{display:flex;color:var(--text);margin-left:-6px;padding:4px}
+  .back svg{width:22px;height:22px}
   #view pre.detail{max-height:none}
   #view .snips{margin:0}
 
@@ -177,10 +180,10 @@
 </div>
 
 <div class="wrap hidden" id="boardPage">
-  <div class="head"><h1><a class="home" href="#">OOC 메이커</a></h1><button class="theme-btn" aria-label="다크 모드 전환"></button></div>
+  <div class="head"><div class="title-row"><a class="back" href="#" aria-label="뒤로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></a><h1>게시판</h1></div><button class="theme-btn" aria-label="다크 모드 전환"></button></div>
   <div class="card">
     <div class="card-head">
-      <div class="t">게시판</div>
+      <div class="t"></div>
       <button class="link" id="boardReload">새로고침</button>
     </div>
     <div id="board"></div>
@@ -189,7 +192,7 @@
 </div>
 
 <div class="wrap hidden" id="view">
-  <div class="head"><h1><a class="home" id="homeLink" href="./">OOC 메이커</a></h1><button class="theme-btn" aria-label="다크 모드 전환"></button></div>
+  <div class="head"><div class="title-row"><a class="back" id="homeLink" href="./" aria-label="뒤로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></a><h1>OOC 메이커</h1></div><button class="theme-btn" aria-label="다크 모드 전환"></button></div>
   <div id="viewBody"></div>
 </div>
 
