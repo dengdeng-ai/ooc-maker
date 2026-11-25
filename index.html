@@ -123,7 +123,7 @@
       <div class="t" id="compTitle"></div>
       <div class="row" style="gap:12px">
         <button class="link hidden" id="cancelEdit">수정 취소</button>
-        <button class="link" id="snipEdit">문구 편집</button>
+        <button class="link" id="snipEdit">버튼 편집</button>
       </div>
     </div>
     <div class="fields">
@@ -136,7 +136,6 @@
       <textarea id="snipText" placeholder="들어갈 내용 (비우면 버튼 이름 그대로)"></textarea>
       <div class="bar">
         <button class="btn sm" id="snipReset">기본값</button>
-        <button class="btn sm" id="snipShare">문구 공유</button>
         <button class="btn sm hidden" id="snipCancel">취소</button>
         <button class="btn sm soft" id="snipAddBtn">추가</button>
       </div>
@@ -144,6 +143,7 @@
     <textarea id="fBody" spellcheck="false"></textarea>
     <div class="bar">
       <button class="btn" id="clearBtn">비우기</button>
+      <button class="btn" id="shareNow">공유</button>
       <button class="btn soft" id="copyNow">복사</button>
       <button class="btn main" id="saveBtn">저장</button>
     </div>
@@ -368,7 +368,7 @@ $('#snips').onclick = e => {
 $('#snipEdit').onclick = () => {
   const on = $('#snips').classList.toggle('editing');
   $('#snipAdd').classList.toggle('hidden', !on);
-  $('#snipEdit').textContent = on ? '완료' : '문구 편집';
+  $('#snipEdit').textContent = on ? '완료' : '버튼 편집';
   resetSnipForm();
 };
 function addSnip(){
@@ -519,7 +519,11 @@ $('#shareList').onclick = () => {
   if (!list.length) { toast('공유할 게 없음'); return; }
   openLink({ i: list.map(pick), s: snips }, filterTag ? `${filterTag} 명령어 ${list.length}개` : `명령어 ${list.length}개`);
 };
-$('#snipShare').onclick = () => { if (snips.length) openLink({ s: snips }, `문구 버튼 ${snips.length}개`); };
+$('#shareNow').onclick = () => {
+  const n = normalize({ t: $('#fTitle').value, g: $('#fTags').value, c: ta.value });
+  if (!n) { toast('내용이 비어 있음'); return; }
+  openLink({ i: [pick(n)] }, n.t);
+};
 
 let incoming = null;
 function openShared(o){
