@@ -46,6 +46,7 @@
   input:focus,textarea:focus{border-color:var(--accent)}
   html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
   textarea{resize:vertical;min-height:180px;line-height:1.6;display:block}
+  @media (max-width:480px){ #fBody{min-height:110px;height:130px} }
   .fields{margin-bottom:8px}
 
   .snips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
@@ -295,6 +296,19 @@ async function copyText(text, msg){
 const ta = $('#fBody');
 let sel = { s: 0, e: 0 };
 ['select','keyup','mouseup','input','blur'].forEach(ev => ta.addEventListener(ev, () => { sel = { s: ta.selectionStart, e: ta.selectionEnd }; }));
+const touch = matchMedia('(pointer:coarse)').matches;
+let pinTimer;
+function pinSnips(){
+  if (!touch || document.activeElement !== ta || $('#snips').classList.contains('editing')) return;
+  const vv = window.visualViewport;
+  const viewTop = vv ? vv.offsetTop : 0;
+  const top = $('#snips').getBoundingClientRect().top;
+  const diff = top - viewTop - 10;
+  if (Math.abs(diff) > 4) window.scrollBy(0, diff);
+}
+function schedulePin(){ clearTimeout(pinTimer); pinTimer = setTimeout(pinSnips, 320); }
+ta.addEventListener('focus', schedulePin);
+if (window.visualViewport) window.visualViewport.addEventListener('resize', schedulePin);
 
 function insertSnip(text){
   const pair = PAIRS[text];
