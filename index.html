@@ -165,7 +165,7 @@
 
   <div class="card">
     <div class="card-head">
-      <div class="t">저장한 명령어<small id="count">0개</small></div>
+      <div class="t">저장한 OOC<small id="count">0개</small></div>
       <button class="link" id="shareList">링크로 공유</button>
     </div>
     <input type="search" id="q" class="search" placeholder="검색">
@@ -597,8 +597,8 @@ const pick = ({ t, g, c }) => ({ t, g, c });
 function share(it){ openLink({ i: [pick(it)] }, it.t); }
 $('#shareList').onclick = () => {
   const list = visibleItems();
-  if (!list.length) { toast('공유할 명령어가 없습니다.'); return; }
-  openLink({ i: list.map(pick), s: snips }, filterTag ? `${filterTag} 명령어 ${list.length}개` : `명령어 ${list.length}개`);
+  if (!list.length) { toast('공유할 OOC가 없습니다.'); return; }
+  openLink({ i: list.map(pick), s: snips }, filterTag ? `${filterTag} OOC ${list.length}개` : `OOC ${list.length}개`);
 };
 $('#shareNow').onclick = () => {
   const n = normalize({ t: $('#fTitle').value, c: ta.value });
@@ -667,7 +667,7 @@ function openShared(o){
   } else {
     if (list.length) html += `
     <div class="card">
-      <div class="card-head"><div class="t">명령어<small>${list.length}개</small></div></div>
+      <div class="card-head"><div class="t">OOC<small>${list.length}개</small></div></div>
       ${list.map((it, i) => `
       <div class="item">
         <div class="item-top">
@@ -948,7 +948,7 @@ function merge(list){
   return added;
 }
 $('#exportBtn').onclick = () => {
-  if (!items.length) { toast('백업할 명령어가 없습니다.'); return; }
+  if (!items.length) { toast('백업할 OOC가 없습니다.'); return; }
   const data = { app: 'ooc', version: 1, exported: new Date().toISOString(), snips, items: items.map(({ t, g, c }) => ({ t, g, c })) };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const d = new Date(), pad = n => String(n).padStart(2, '0');
