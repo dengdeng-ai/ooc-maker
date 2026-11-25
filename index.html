@@ -67,6 +67,9 @@
   .snip-add .bar{margin-top:0;justify-content:flex-end}
 
   .bar{display:flex;gap:8px;margin-top:10px}
+  .count{text-align:right;font-size:12px;color:var(--sub);margin-top:5px}
+  .count + .bar{margin-top:6px}
+  #linkBox .card > input + input{margin-top:8px}
   .btn{flex:1;padding:11px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--text);font:inherit;cursor:pointer;white-space:nowrap}
   .btn.main{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
   .btn.soft{background:var(--accent-soft);border-color:var(--accent-soft);color:var(--ok);font-weight:600}
@@ -135,6 +138,7 @@
       </div>
     </div>
     <textarea id="fBody" spellcheck="false"></textarea>
+    <div class="count" id="charCount">0자</div>
     <div class="bar">
       <button class="btn" id="clearBtn">비우기</button>
       <button class="btn" id="shareNow">공유</button>
@@ -182,10 +186,22 @@
   </div>
 </div>
 
+<div class="modal" id="lockBox">
+  <div class="card">
+    <div class="name">비밀번호</div>
+    <input type="text" id="uPw" autocomplete="off" autocapitalize="off" spellcheck="false" style="margin-top:10px">
+    <div class="bar">
+      <button class="btn" id="uClose">닫기</button>
+      <button class="btn main" id="uOpen">열기</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal" id="linkBox">
   <div class="card">
     <div class="name" id="lTitle"></div>
-    <input type="text" id="lUrl" readonly style="margin-top:10px;color:var(--sub)">
+    <input type="text" id="lPw" placeholder="비밀번호 (선택)" autocomplete="off" autocapitalize="off" spellcheck="false" style="margin-top:10px">
+    <input type="text" id="lUrl" readonly style="color:var(--sub)">
     <div class="bar">
       <button class="btn" id="lClose">닫기</button>
       <button class="btn soft hidden" id="lShare">보내기</button>
@@ -295,6 +311,8 @@ async function copyText(text, msg){
 const ta = $('#fBody');
 let sel = { s: 0, e: 0 };
 ['select','keyup','mouseup','input','blur'].forEach(ev => ta.addEventListener(ev, () => { sel = { s: ta.selectionStart, e: ta.selectionEnd }; }));
+function updateCount(){ $('#charCount').textContent = [...ta.value].length.toLocaleString() + '자'; }
+ta.addEventListener('input', updateCount);
 const touch = matchMedia('(pointer:coarse)').matches;
 let pinTimer;
 function pinSnips(){
@@ -333,6 +351,7 @@ function insertSnip(text){
   if (!ok) ta.setRangeText(ins, s, e, 'end');
   ta.setSelectionRange(caretS, caretE);
   sel = { s: caretS, e: caretE };
+  updateCount();
 }
 
 function renderSnips(){
@@ -389,7 +408,7 @@ $('#snipReset').onclick = () => { if (confirm('문구를 기본값으로 되돌�
 function setEditing(it){
   editingId = it ? it.id : null;
   $('#fTitle').value = it ? it.t : '';
-  ta.value = it ? it.c : '';
+  ta.value = it ? it.c : ''; updateCount();
   sel = { s: ta.value.length, e: ta.value.length };
   $('#compTitle').textContent = it ? '수정' : '';
   $('#cancelEdit').classList.toggle('hidden', !it);
@@ -398,7 +417,7 @@ function setEditing(it){
 $('#cancelEdit').onclick = () => setEditing(null);
 $('#clearBtn').onclick = () => {
   if (!ta.value && !$('#fTitle').value) return;
-  $('#fTitle').value = ''; ta.value = ''; sel = { s: 0, e: 0 }; ta.focus();
+  $('#fTitle').value = ''; ta.value = ''; updateCount(); sel = { s: 0, e: 0 }; ta.focus();
 };
 $('#copyNow').onclick = () => { if (ta.value.trim()) copyText(ta.value); };
 $('#saveBtn').onclick = () => {
@@ -486,18 +505,48 @@ async function unpack(s){
 }
 function legacyDec(s){ return JSON.parse(new TextDecoder().decode(b64d(s))); }
 
-let linkUrl = '';
+async function deriveKey(pw, salt){
+  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: 150000, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+}
+async function lock(str, pw){
+  const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await deriveKey(pw, salt);
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(str)));
+  const out = new Uint8Array(28 + ct.length); out.set(salt); out.set(iv, 16); out.set(ct, 28);
+  return b64e(out);
+}
+async function unlock(s, pw){
+  const b = b64d(s);
+  const key = await deriveKey(pw, b.slice(0, 16));
+  return new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b.slice(16, 28) }, key, b.slice(28)));
+}
+
+let linkUrl = '', linkPacked = '', linkSeq = 0;
+async function buildLink(){
+  const seq = ++linkSeq, pw = $('#lPw').value;
+  $('#lCopy').disabled = $('#lShare').disabled = true;
+  let url;
+  try { url = location.origin + location.pathname + (pw ? '#e=' + await lock(linkPacked, pw) : '#p=' + linkPacked); }
+  catch(e){ if (seq === linkSeq) toast('링크를 못 만듦'); return; }
+  if (seq !== linkSeq) return;
+  linkUrl = url; $('#lUrl').value = url;
+  $('#lCopy').disabled = $('#lShare').disabled = false;
+}
 async function openLink(payload, title){
-  try { linkUrl = location.origin + location.pathname + '#p=' + await pack(payload); }
+  try { linkPacked = await pack(payload); }
   catch(e){ toast('링크를 못 만듦'); return; }
   $('#lTitle').textContent = title;
-  $('#lUrl').value = linkUrl;
+  $('#lPw').value = '';
   $('#lShare').classList.toggle('hidden', !navigator.share);
+  await buildLink();
   $('#linkBox').classList.add('show');
 }
+let pwTimer;
+$('#lPw').addEventListener('input', () => { $('#lCopy').disabled = $('#lShare').disabled = true; clearTimeout(pwTimer); pwTimer = setTimeout(buildLink, 250); });
 const closeLink = () => $('#linkBox').classList.remove('show');
 $('#lClose').onclick = closeLink;
-$('#lCopy').onclick = () => copyText(linkUrl, '링크 복사됨');
+$('#lCopy').onclick = () => { if (!$('#lCopy').disabled) copyText(linkUrl, '링크 복사됨'); };
 $('#lShare').onclick = async () => { try { await navigator.share({ title: $('#lTitle').textContent, url: linkUrl }); } catch(e){} };
 $('#lUrl').onclick = e => e.target.select();
 $('#linkBox').addEventListener('click', e => { if (e.target.id === 'linkBox') closeLink(); });
@@ -558,10 +607,35 @@ document.addEventListener('keydown', e => {
   if ($('#linkBox').classList.contains('show')) closeLink();
   else if ($('#shared').classList.contains('show')) closeShared();
 });
+let lockedData = '';
+function closeLock(){
+  $('#lockBox').classList.remove('show'); lockedData = '';
+  history.replaceState(null, '', location.pathname + location.search);
+}
+async function tryUnlock(){
+  const pw = $('#uPw').value; if (!pw || !lockedData) return;
+  $('#uOpen').disabled = true;
+  try {
+    const data = await unpack(await unlock(lockedData, pw));
+    $('#lockBox').classList.remove('show'); lockedData = '';
+    openShared(data);
+  } catch(e){ toast('비밀번호가 틀림'); $('#uPw').select(); }
+  $('#uOpen').disabled = false;
+}
+$('#uOpen').onclick = tryUnlock;
+$('#uClose').onclick = closeLock;
+$('#uPw').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); tryUnlock(); } });
+$('#lockBox').addEventListener('click', e => { if (e.target.id === 'lockBox') closeLock(); });
+
 async function checkHash(){
   const h = location.hash;
   try {
-    if (h.startsWith('#p=')) openShared(await unpack(h.slice(3)));
+    if (h.startsWith('#e=')) {
+      lockedData = h.slice(3); $('#uPw').value = '';
+      $('#lockBox').classList.add('show');
+      setTimeout(() => $('#uPw').focus(), 50);
+    }
+    else if (h.startsWith('#p=')) openShared(await unpack(h.slice(3)));
     else if (h.startsWith('#s=')) openShared(legacyDec(h.slice(3)));
   } catch(e){ toast('링크가 깨져 있음'); }
 }
