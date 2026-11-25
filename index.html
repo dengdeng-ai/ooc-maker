@@ -184,7 +184,7 @@
   <div class="card">
     <div class="card-head">
       <div class="t"></div>
-      <button class="link" id="boardReload">새로고침</button>
+      <div class="row" style="gap:12px"><button class="link hidden" id="adminOut">로그아웃</button><button class="link" id="boardReload">새로고침</button></div>
     </div>
     <div id="board"></div>
     <button class="btn sm more hidden" id="boardMore">더 보기</button>
@@ -201,6 +201,18 @@
     <div class="name">직접 복사</div>
     <textarea id="cText" readonly style="margin-top:10px;min-height:140px"></textarea>
     <div class="bar"><button class="btn" id="cClose">닫기</button></div>
+  </div>
+</div>
+
+<div class="modal" id="adminBox">
+  <div class="card">
+    <div class="name">관리자 로그인</div>
+    <input type="email" id="aEmail" placeholder="이메일" autocomplete="username" autocapitalize="off" style="margin-top:10px">
+    <input type="password" id="aPw" placeholder="비밀번호" autocomplete="current-password" style="margin-top:8px">
+    <div class="bar">
+      <button class="btn" id="aClose">닫기</button>
+      <button class="btn main" id="aLogin">로그인</button>
+    </div>
   </div>
 </div>
 
@@ -731,8 +743,27 @@ const reported = readLS('ooc.reported.v1') || {};
 let reporterId = readLS('ooc.reporter.v1');
 if (!reporterId) { reporterId = b64e(crypto.getRandomValues(new Uint8Array(18))); writeLS('ooc.reporter.v1', reporterId); }
 
+let admin = readLS('ooc.admin.v1');
+function setAdmin(a){
+  admin = a;
+  if (a) writeLS('ooc.admin.v1', a); else { try { localStorage.removeItem('ooc.admin.v1'); } catch(e){} }
+  $('#adminOut').classList.toggle('hidden', !a);
+}
+async function authToken(){
+  if (!admin) return null;
+  if (Date.now() / 1000 < admin.expires_at - 60) return admin.access_token;
+  try {
+    const res = await fetch(SB_URL + '/auth/v1/token?grant_type=refresh_token', { method: 'POST', headers: { apikey: SB_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: admin.refresh_token }) });
+    if (!res.ok) throw 0;
+    const d = await res.json();
+    setAdmin({ access_token: d.access_token, refresh_token: d.refresh_token, expires_at: d.expires_at || Date.now() / 1000 + d.expires_in });
+    return admin.access_token;
+  } catch(e){ setAdmin(null); toast('관리자 로그인이 만료되었습니다.'); return null; }
+}
 async function sb(path, opt = {}){
-  const res = await fetch(SB_URL + path, { ...opt, headers: { apikey: SB_KEY, 'Content-Type': 'application/json', ...(opt.headers || {}) } });
+  const tok = await authToken();
+  const auth = tok ? { Authorization: 'Bearer ' + tok } : {};
+  const res = await fetch(SB_URL + path, { ...opt, headers: { apikey: SB_KEY, 'Content-Type': 'application/json', ...auth, ...(opt.headers || {}) } });
   if (!res.ok) throw new Error(res.status + ' ' + await res.text());
   const t = await res.text();
   return t ? JSON.parse(t) : null;
@@ -751,7 +782,7 @@ async function loadBoard(more){
   if (!more) { boardEnd = false; if (!posts.length) $('#board').innerHTML = '<div class="empty">불러오는 중입니다.</div>'; }
   try {
     const before = more && posts.length ? '&id=lt.' + posts[posts.length - 1].id : '';
-    const rows = await sb(`/rest/v1/posts?select=id,created_at,title,body,adult,locked&order=id.desc&limit=${PAGE}${before}`);
+    const rows = await sb(`/rest/v1/posts?select=id,created_at,title,body,adult,locked${admin ? ',reports' : ''}&order=id.desc&limit=${PAGE}${before}`);
     const opened = Object.fromEntries(posts.filter(p => p.open != null).map(p => [p.id, p.open]));
     rows.forEach(r => { if (opened[r.id] != null) r.open = opened[r.id]; });
     posts = more ? posts.concat(rows) : rows;
@@ -775,14 +806,15 @@ function renderBoard(){
       <div class="item-top">
         <div class="info">
           <div class="name">${p.adult ? '<span class="badge">성인</span>' : ''}${esc(p.title)}</div>
-          <div class="meta">${p.locked ? ICON.lock : ''}${when(p.created_at)}</div>
+          <div class="meta">${p.locked ? ICON.lock : ''}${when(p.created_at)}${admin && p.reports ? ` · <span style="color:var(--warn)">신고 ${p.reports}${p.reports >= 3 ? ' · 숨김' : ''}</span>` : ''}</div>
         </div>
         <div class="acts">
           ${shut
             ? `<button class="ib copy" data-act="open" title="열기">${ICON.lock}</button>`
             : `<button class="ib copy" data-act="copy" title="복사">${ICON.copy}</button>
                <button class="ib" data-act="keep" title="내 목록에 저장">${ICON.save}</button>`}
-          ${mine[p.id] ? `<button class="ib del" data-act="del" title="삭제">${ICON.del}</button>` : `<button class="ib del" data-act="report" title="신고"${reported[p.id] ? ' disabled style="opacity:.35"' : ''}>${ICON.flag}</button>`}
+          ${admin && p.reports ? `<button class="ib" data-act="restore" title="신고 초기화">${ICON.done}</button>` : ''}
+          ${mine[p.id] || admin ? `<button class="ib del" data-act="del" title="삭제">${ICON.del}</button>` : `<button class="ib del" data-act="report" title="신고"${reported[p.id] ? ' disabled style="opacity:.35"' : ''}>${ICON.flag}</button>`}
         </div>
       </div>
       ${shut ? '' : `<div class="body">${esc(text)}</div>`}
@@ -816,10 +848,18 @@ $('#board').onclick = async e => {
       reported[p.id] = 1; writeLS('ooc.reported.v1', reported); renderBoard();
       toast(ok ? '신고되었습니다.' : '이미 신고한 게시물입니다.');
     } catch(err){ toast('신고하지 못했습니다.'); }
+  } else if (act === 'restore') {
+    try {
+      const rows = await sb(`/rest/v1/posts?id=eq.${p.id}&select=id`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ reports: 0 }) });
+      if (!rows || !rows.length) { toast('처리하지 못했습니다.'); return; }
+      p.reports = 0; renderBoard(); toast('신고가 초기화되었습니다.');
+    } catch(err){ toast('처리하지 못했습니다.'); }
   } else if (act === 'del') {
     if (!confirm(`'${p.title}'을(를) 게시판에서 삭제하시겠습니까?`)) return;
     try {
-      const ok = await sb('/rest/v1/rpc/delete_post', { method: 'POST', body: JSON.stringify({ pid: p.id, token: mine[p.id] }) });
+      let ok;
+      if (mine[p.id]) ok = await sb('/rest/v1/rpc/delete_post', { method: 'POST', body: JSON.stringify({ pid: p.id, token: mine[p.id] }) });
+      if (!ok && admin) ok = ((await sb(`/rest/v1/posts?id=eq.${p.id}&select=id`, { method: 'DELETE', headers: { Prefer: 'return=representation' } })) || []).length > 0;
       if (!ok) { toast('삭제할 수 없습니다.'); return; }
       delete mine[p.id]; writeLS(MINE_KEY, mine);
       posts = posts.filter(x => x !== p); renderBoard(); toast('삭제되었습니다.');
@@ -827,6 +867,32 @@ $('#board').onclick = async e => {
   }
 };
 $('#boardReload').onclick = () => loadBoard(false);
+function openAdmin(){ $('#aPw').value = ''; $('#adminBox').classList.add('show'); setTimeout(() => $('#aEmail').focus(), 50); }
+function closeAdmin(){ $('#adminBox').classList.remove('show'); }
+async function adminLogin(){
+  const email = $('#aEmail').value.trim(), password = $('#aPw').value;
+  if (!email || !password) return;
+  $('#aLogin').disabled = true;
+  try {
+    const res = await fetch(SB_URL + '/auth/v1/token?grant_type=password', { method: 'POST', headers: { apikey: SB_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
+    if (!res.ok) throw 0;
+    const d = await res.json();
+    setAdmin({ access_token: d.access_token, refresh_token: d.refresh_token, expires_at: d.expires_at || Date.now() / 1000 + d.expires_in });
+    const isAdmin = await sb('/rest/v1/rpc/is_admin', { method: 'POST', body: '{}' });
+    if (!isAdmin) { setAdmin(null); toast('관리자 권한이 없는 계정입니다.'); }
+    else { closeAdmin(); toast('관리자로 로그인되었습니다.'); location.hash = '#board'; loadBoard(false); }
+  } catch(e){ setAdmin(null); toast('로그인하지 못했습니다.'); }
+  $('#aLogin').disabled = false;
+}
+$('#aLogin').onclick = adminLogin;
+$('#aClose').onclick = closeAdmin;
+$('#aPw').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); adminLogin(); } });
+$('#adminBox').addEventListener('click', e => { if (e.target.id === 'adminBox') closeAdmin(); });
+$('#adminOut').onclick = async () => {
+  try { await fetch(SB_URL + '/auth/v1/logout', { method: 'POST', headers: { apikey: SB_KEY, Authorization: 'Bearer ' + admin.access_token } }); } catch(e){}
+  setAdmin(null); toast('로그아웃되었습니다.'); loadBoard(false);
+};
+setAdmin(admin);
 $('#boardMore').onclick = () => loadBoard(true);
 
 $('#postBtn').onclick = async () => {
@@ -860,6 +926,7 @@ async function checkHash(){
     else if (h.startsWith('#p=')) openShared(await unpack(h.slice(3)));
     else if (h.startsWith('#s=')) openShared(legacyDec(h.slice(3)));
     else if (h === '#board') enterBoard();
+    else if (h === '#admin') { enterBoard(); openAdmin(); }
     else leaveView();
   } catch(e){ viewMsg('올바르지 않은 링크입니다.'); }
 }
