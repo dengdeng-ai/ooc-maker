@@ -120,7 +120,7 @@
 
   <div class="card" id="composer">
     <div class="card-head">
-      <div class="t" id="compTitle">작성</div>
+      <div class="t" id="compTitle"></div>
       <div class="row" style="gap:12px">
         <button class="link hidden" id="cancelEdit">수정 취소</button>
         <button class="link" id="snipEdit">문구 편집</button>
@@ -390,7 +390,7 @@ function setEditing(it){
   $('#fTags').value = it ? it.g.join(', ') : '';
   ta.value = it ? it.c : '';
   sel = { s: ta.value.length, e: ta.value.length };
-  $('#compTitle').textContent = it ? '수정' : '작성';
+  $('#compTitle').textContent = it ? '수정' : '';
   $('#cancelEdit').classList.toggle('hidden', !it);
   render();
 }
