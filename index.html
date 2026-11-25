@@ -46,10 +46,7 @@
   input:focus,textarea:focus{border-color:var(--accent)}
   html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
   textarea{resize:vertical;min-height:180px;line-height:1.6;display:block}
-  .fields{display:flex;gap:8px;margin-bottom:8px}
-  .fields input:first-child{flex:1.3}
-  .fields input:last-child{flex:1}
-  @media (max-width:480px){ .fields{flex-direction:column} }
+  .fields{margin-bottom:8px}
 
   .snips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
   .snips .snip{flex:1 1 auto;text-align:center}
@@ -76,8 +73,6 @@
   .btn:disabled{opacity:.5;cursor:default}
 
   .search{margin-bottom:10px}
-  .tags{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px}
-  .tags:empty{display:none}
   .chip{font:inherit;font-size:11.5px;padding:2px 9px;border-radius:20px;background:var(--bg);color:var(--sub);border:0;white-space:nowrap}
   button.chip{cursor:pointer}
   .chip.on{background:var(--accent);color:var(--on-accent)}
@@ -88,7 +83,6 @@
   .item-top{display:flex;align-items:flex-start;gap:8px}
   .info{flex:1;min-width:0}
   .name{font-weight:600;word-break:break-word}
-  .item .chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
   .body{white-space:pre-wrap;word-break:break-word;margin-top:8px;max-height:6.2em;overflow:hidden;position:relative;color:var(--text);font-size:13.5px}
   .body.long{cursor:pointer}
   .body.open{max-height:none}
@@ -128,7 +122,6 @@
     </div>
     <div class="fields">
       <input type="text" id="fTitle" placeholder="제목">
-      <input type="text" id="fTags" placeholder="태그 (쉼표로 구분)">
     </div>
     <div class="snips" id="snips"></div>
     <div class="snip-add hidden" id="snipAdd">
@@ -155,7 +148,6 @@
       <button class="link" id="shareList">링크로 공유</button>
     </div>
     <input type="search" id="q" class="search" placeholder="검색">
-    <div class="tags" id="tags"></div>
     <div id="list"></div>
   </div>
 
@@ -263,14 +255,11 @@ const saveItems = () => writeLS(KEY, items);
 const saveSnips = () => writeLS(SNIP_KEY, snips);
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-function parseTags(s){ return [...new Set(String(s || '').split(',').map(t => t.trim()).filter(Boolean))]; }
 function normalize(o){
   const c = String(o.c ?? o.content ?? '').replace(/\s+$/, '');
   if (!c.trim()) return null;
   const t = String(o.t ?? o.title ?? '').trim() || c.trim().split('\n')[0].slice(0, 30);
-  const raw = o.g ?? o.tags;
-  const g = Array.isArray(raw) ? [...new Set(raw.map(x => String(x).trim()).filter(Boolean))] : parseTags(raw);
-  return { id: uid(), t, g, c, at: Date.now() };
+  return { id: uid(), t, g: [], c, at: Date.now() };
 }
 
 let toastTimer;
@@ -387,7 +376,6 @@ $('#snipReset').onclick = () => { if (confirm('문구를 기본값으로 되돌�
 function setEditing(it){
   editingId = it ? it.id : null;
   $('#fTitle').value = it ? it.t : '';
-  $('#fTags').value = it ? it.g.join(', ') : '';
   ta.value = it ? it.c : '';
   sel = { s: ta.value.length, e: ta.value.length };
   $('#compTitle').textContent = it ? '수정' : '';
@@ -396,12 +384,12 @@ function setEditing(it){
 }
 $('#cancelEdit').onclick = () => setEditing(null);
 $('#clearBtn').onclick = () => {
-  if (!ta.value && !$('#fTitle').value && !$('#fTags').value) return;
-  $('#fTitle').value = ''; $('#fTags').value = ''; ta.value = ''; sel = { s: 0, e: 0 }; ta.focus();
+  if (!ta.value && !$('#fTitle').value) return;
+  $('#fTitle').value = ''; ta.value = ''; sel = { s: 0, e: 0 }; ta.focus();
 };
 $('#copyNow').onclick = () => { if (ta.value.trim()) copyText(ta.value); };
 $('#saveBtn').onclick = () => {
-  const n = normalize({ t: $('#fTitle').value, g: $('#fTags').value, c: ta.value });
+  const n = normalize({ t: $('#fTitle').value, c: ta.value });
   if (!n) { toast('내용이 비어 있음'); return; }
   if (editingId) {
     const it = items.find(i => i.id === editingId);
@@ -420,12 +408,7 @@ function visibleItems(){
 }
 function render(){
   const q = $('#q').value.trim().toLowerCase();
-  const allTags = [...new Set(items.flatMap(i => i.g))].sort((a, b) => a.localeCompare(b, 'ko'));
-  if (filterTag && !allTags.includes(filterTag)) filterTag = null;
   $('#count').textContent = items.length + '개';
-
-  $('#tags').innerHTML = allTags.length ? [`<button class="chip${filterTag ? '' : ' on'}" data-tag="">전체</button>`]
-    .concat(allTags.map(t => `<button class="chip${t === filterTag ? ' on' : ''}" data-tag="${esc(t)}">${esc(t)}</button>`)).join('') : '';
 
   const shown = visibleItems();
 
@@ -437,7 +420,6 @@ function render(){
       <div class="item-top">
         <div class="info">
           <div class="name">${esc(i.t)}</div>
-          ${i.g.length ? `<div class="chips">${i.g.map(t => `<span class="chip">${esc(t)}</span>`).join('')}</div>` : ''}
         </div>
         <div class="acts">
           <button class="ib copy" data-act="copy" title="복사">${ICON.copy}</button>
@@ -469,11 +451,6 @@ $('#list').onclick = e => {
     if (editingId === it.id) setEditing(null);
     saveItems(); render(); toast('삭제됨');
   }
-};
-$('#tags').onclick = e => {
-  const b = e.target.closest('[data-tag]'); if (!b) return;
-  const t = b.dataset.tag;
-  filterTag = (!t || t === filterTag) ? null : t; render();
 };
 $('#q').oninput = render;
 
@@ -520,7 +497,7 @@ $('#shareList').onclick = () => {
   openLink({ i: list.map(pick), s: snips }, filterTag ? `${filterTag} 명령어 ${list.length}개` : `명령어 ${list.length}개`);
 };
 $('#shareNow').onclick = () => {
-  const n = normalize({ t: $('#fTitle').value, g: $('#fTags').value, c: ta.value });
+  const n = normalize({ t: $('#fTitle').value, c: ta.value });
   if (!n) { toast('내용이 비어 있음'); return; }
   openLink({ i: [pick(n)] }, n.t);
 };
@@ -536,7 +513,7 @@ function openShared(o){
   if (single) {
     const it = list[0];
     $('#sTitle').textContent = it.t;
-    $('#sTags').innerHTML = it.g.map(t => `<span class="chip">${esc(t)}</span>`).join('');
+    $('#sTags').innerHTML = '';
     $('#sBody').textContent = it.c;
   } else {
     $('#sTitle').textContent = [list.length && `명령어 ${list.length}개`, sn.length && `문구 버튼 ${sn.length}개`].filter(Boolean).join(' · ');
