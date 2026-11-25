@@ -288,7 +288,7 @@ let editingId = null;
 let sharedItem = null;
 
 function readLS(k){ try { return JSON.parse(localStorage.getItem(k)); } catch(e){ return null; } }
-function writeLS(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){ toast('저장 실패'); } }
+function writeLS(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){ toast('저장하지 못했어요'); } }
 const saveItems = () => writeLS(KEY, items);
 const saveSnips = () => writeLS(SNIP_KEY, snips);
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
@@ -324,7 +324,7 @@ async function copyText(text, msg){
   if (!ok && navigator.clipboard && window.isSecureContext) {
     try { await navigator.clipboard.writeText(text); ok = true; } catch(e){}
   }
-  if (ok) { toast(msg || '복사됨'); return; }
+  if (ok) { toast(msg || '복사했어요'); return; }
   $('#cText').value = text;
   $('#copyBox').classList.add('show');
   setTimeout(() => { $('#cText').focus(); $('#cText').setSelectionRange(0, text.length); }, 50);
@@ -420,12 +420,12 @@ function addSnip(){
   if (snipIdx >= 0) snips[snipIdx] = s;
   else snips.push(s);
   const was = snipIdx >= 0;
-  saveSnips(); resetSnipForm(); toast(was ? '수정됨' : '추가됨');
+  saveSnips(); resetSnipForm(); toast(was ? '수정했어요' : '추가했어요');
 }
 $('#snipAddBtn').onclick = addSnip;
 $('#snipCancel').onclick = resetSnipForm;
 $('#snipLabel').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); $('#snipText').focus(); } });
-$('#snipReset').onclick = () => { if (confirm('문구를 기본값으로 되돌릴까?')) { snips = DEFAULT_SNIPS.map(s => ({ ...s })); saveSnips(); resetSnipForm(); } };
+$('#snipReset').onclick = () => { if (confirm('버튼을 기본값으로 되돌릴까요?')) { snips = DEFAULT_SNIPS.map(s => ({ ...s })); saveSnips(); resetSnipForm(); } };
 
 function setEditing(it){
   editingId = it ? it.id : null;
@@ -444,13 +444,13 @@ $('#clearBtn').onclick = () => {
 $('#copyNow').onclick = () => { if (ta.value.trim()) copyText(ta.value); };
 $('#saveBtn').onclick = () => {
   const n = normalize({ t: $('#fTitle').value, c: ta.value });
-  if (!n) { toast('내용이 비어 있음'); return; }
+  if (!n) { toast('내용이 비어 있어요'); return; }
   if (editingId) {
     const it = items.find(i => i.id === editingId);
     if (it) Object.assign(it, { t: n.t, g: n.g, c: n.c });
     else items.unshift(n);
   } else items.unshift(n);
-  saveItems(); setEditing(null); toast('저장됨');
+  saveItems(); setEditing(null); toast('저장했어요');
 };
 
 function visibleItems(){
@@ -500,10 +500,10 @@ $('#list').onclick = e => {
     btn.innerHTML = ICON.done; setTimeout(() => { btn.innerHTML = ICON.copy; }, 1200);
   } else if (act === 'share') share(it);
   else if (act === 'edit') { setEditing(it); $('#composer').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
-  else if (act === 'del' && confirm(`'${it.t}' 삭제할까?`)) {
+  else if (act === 'del' && confirm(`'${it.t}'을(를) 삭제할까요?`)) {
     items = items.filter(i => i.id !== it.id);
     if (editingId === it.id) setEditing(null);
-    saveItems(); render(); toast('삭제됨');
+    saveItems(); render(); toast('삭제했어요');
   }
 };
 $('#q').oninput = render;
@@ -550,7 +550,7 @@ async function buildLink(){
   $('#lCopy').disabled = $('#lShare').disabled = true;
   let url;
   try { url = location.origin + location.pathname + (pw ? '#e=' + await lock(linkPacked, pw) : '#p=' + linkPacked); }
-  catch(e){ if (seq === linkSeq) toast('링크를 못 만듦'); return; }
+  catch(e){ if (seq === linkSeq) toast('링크를 만들지 못했어요'); return; }
   if (seq !== linkSeq) return;
   linkUrl = url; $('#lUrl').value = url;
   $('#lCopy').disabled = $('#lShare').disabled = false;
@@ -561,7 +561,7 @@ async function openLink(payload, title){
   $('#postRow').classList.toggle('hidden', !boardItem);
   $('#lAdult').checked = false;
   try { linkPacked = await pack(payload); }
-  catch(e){ toast('링크를 못 만듦'); return; }
+  catch(e){ toast('링크를 만들지 못했어요'); return; }
   $('#lTitle').textContent = title;
   $('#lPw').value = '';
   $('#lShare').classList.toggle('hidden', !navigator.share);
@@ -572,7 +572,7 @@ let pwTimer;
 $('#lPw').addEventListener('input', () => { $('#lCopy').disabled = $('#lShare').disabled = true; clearTimeout(pwTimer); pwTimer = setTimeout(buildLink, 250); });
 const closeLink = () => $('#linkBox').classList.remove('show');
 $('#lClose').onclick = closeLink;
-$('#lCopy').onclick = () => { if (!$('#lCopy').disabled) copyText(linkUrl, '링크 복사됨'); };
+$('#lCopy').onclick = () => { if (!$('#lCopy').disabled) copyText(linkUrl, '링크를 복사했어요'); };
 $('#lShare').onclick = async () => { try { await navigator.share({ title: $('#lTitle').textContent, url: linkUrl }); } catch(e){} };
 $('#lUrl').onclick = e => e.target.select();
 $('#linkBox').addEventListener('click', e => { if (e.target.id === 'linkBox') closeLink(); });
@@ -581,12 +581,12 @@ const pick = ({ t, g, c }) => ({ t, g, c });
 function share(it){ openLink({ i: [pick(it)] }, it.t); }
 $('#shareList').onclick = () => {
   const list = visibleItems();
-  if (!list.length) { toast('공유할 게 없음'); return; }
+  if (!list.length) { toast('공유할 명령어가 없어요'); return; }
   openLink({ i: list.map(pick), s: snips }, filterTag ? `${filterTag} 명령어 ${list.length}개` : `명령어 ${list.length}개`);
 };
 $('#shareNow').onclick = () => {
   const n = normalize({ t: $('#fTitle').value, c: ta.value });
-  if (!n) { toast('내용이 비어 있음'); return; }
+  if (!n) { toast('내용이 비어 있어요'); return; }
   openLink({ i: [pick(n)] }, n.t);
 };
 
@@ -624,7 +624,7 @@ function viewLocked(data){
     const pw = $('#vPw').value; if (!pw) return;
     $('#vOpen').disabled = true;
     try { openShared(await unpack(await unlock(data, pw))); }
-    catch(e){ toast('비밀번호가 틀림'); $('#vPw').select(); $('#vOpen').disabled = false; }
+    catch(e){ toast('비밀번호가 맞지 않아요'); $('#vPw').select(); $('#vOpen').disabled = false; }
   };
   $('#vOpen').onclick = go;
   $('#vPw').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); go(); } });
@@ -633,7 +633,7 @@ function viewLocked(data){
 function openShared(o){
   const list = (Array.isArray(o.i) ? o.i : (o.c ? [o] : [])).map(normalize).filter(Boolean);
   const sn = Array.isArray(o.s) ? o.s.map(toSnip).filter(Boolean) : [];
-  if (!list.length && !sn.length) { viewMsg('내용이 없는 링크'); return; }
+  if (!list.length && !sn.length) { viewMsg('내용이 없는 링크예요'); return; }
   incoming = { list, sn };
   enterView();
   let html = '';
@@ -685,8 +685,8 @@ $('#viewBody').onclick = e => {
     incoming.sn.forEach(x => { if (!snips.some(o => o.l === x.l && o.x === x.x)) { snips.push(x); m++; } });
     if (m) { saveSnips(); renderSnips(); }
     saveItems(); render();
-    toast(n || m ? '저장됨' : '이미 다 있음');
-    btn.textContent = '저장됨'; btn.disabled = true;
+    toast(n || m ? '저장했어요' : '이미 다 저장되어 있어요');
+    btn.textContent = '저장 완료'; btn.disabled = true;
   }
 };
 document.addEventListener('keydown', e => {
@@ -712,7 +712,7 @@ async function tryUnlock(){
       $('#lockBox').classList.remove('show'); lockedData = '';
       openShared(data);
     }
-  } catch(e){ toast('비밀번호가 틀림'); $('#uPw').select(); }
+  } catch(e){ toast('비밀번호가 맞지 않아요'); $('#uPw').select(); }
   $('#uOpen').disabled = false;
 }
 $('#uOpen').onclick = tryUnlock;
@@ -754,8 +754,8 @@ async function loadBoard(more){
     boardEnd = rows.length < PAGE;
     renderBoard();
   } catch(e){
-    if (!posts.length) $('#board').innerHTML = '<div class="empty">불러오기 실패</div>';
-    else toast('불러오기 실패');
+    if (!posts.length) $('#board').innerHTML = '<div class="empty">불러오지 못했어요</div>';
+    else toast('불러오지 못했어요');
   }
   boardBusy = false;
 }
@@ -803,15 +803,15 @@ $('#board').onclick = async e => {
     btn.innerHTML = ICON.done; setTimeout(() => { btn.innerHTML = ICON.copy; }, 1200);
   } else if (act === 'keep') {
     const n = merge([{ t: p.title, c: text }]); saveItems(); render();
-    toast(n ? '내 목록에 저장됨' : '이미 있음');
+    toast(n ? '내 목록에 저장했어요' : '이미 저장되어 있어요');
   } else if (act === 'del') {
-    if (!confirm(`'${p.title}' 게시판에서 지울까?`)) return;
+    if (!confirm(`'${p.title}'을(를) 게시판에서 삭제할까요?`)) return;
     try {
       const ok = await sb('/rest/v1/rpc/delete_post', { method: 'POST', body: JSON.stringify({ pid: p.id, token: mine[p.id] }) });
-      if (!ok) { toast('지울 수 없음'); return; }
+      if (!ok) { toast('삭제할 수 없어요'); return; }
       delete mine[p.id]; writeLS(MINE_KEY, mine);
-      posts = posts.filter(x => x !== p); renderBoard(); toast('지워짐');
-    } catch(err){ toast('지우기 실패'); }
+      posts = posts.filter(x => x !== p); renderBoard(); toast('삭제했어요');
+    } catch(err){ toast('삭제하지 못했어요'); }
   }
 };
 $('#boardReload').onclick = () => loadBoard(false);
@@ -820,12 +820,12 @@ $('#boardMore').onclick = () => loadBoard(true);
 $('#postBtn').onclick = async () => {
   if (!boardItem) return;
   const pw = $('#lPw').value, adult = $('#lAdult').checked;
-  if (adult && !pw) { toast('성인 OOC는 비밀번호 필수'); $('#lPw').focus(); return; }
+  if (adult && !pw) { toast('성인 OOC는 비밀번호가 필요해요'); $('#lPw').focus(); return; }
   const title = String(boardItem.t || '').trim().slice(0, 60) || '제목 없음';
   const c = String(boardItem.c || '');
   if (!c.trim()) return;
-  if (c.length > 4000) { toast('4000자까지만 올릴 수 있음'); return; }
-  if (!confirm(adult ? '성인 OOC로 게시판에 올릴까?' : '게시판에 올릴까? 누구나 볼 수 있음')) return;
+  if (c.length > 4000) { toast('4,000자까지만 올릴 수 있어요'); return; }
+  if (!confirm(adult ? '성인 OOC로 게시판에 올릴까요?' : '게시판에 올릴까요? 누구나 볼 수 있어요.')) return;
   $('#postBtn').disabled = true;
   try {
     const token = b64e(crypto.getRandomValues(new Uint8Array(18)));
@@ -835,9 +835,9 @@ $('#postBtn').onclick = async () => {
       body: JSON.stringify({ title, body, adult, locked: !!pw, del_hash: await sha256hex(token) })
     });
     if (rows && rows[0]) { mine[rows[0].id] = token; writeLS(MINE_KEY, mine); }
-    closeLink(); toast('게시판에 올림');
+    closeLink(); toast('게시판에 올렸어요');
     if (boardLoaded) loadBoard(false);
-  } catch(e){ toast('올리기 실패'); }
+  } catch(e){ toast('올리지 못했어요'); }
   $('#postBtn').disabled = false;
 };
 
@@ -849,7 +849,7 @@ async function checkHash(){
     else if (h.startsWith('#s=')) openShared(legacyDec(h.slice(3)));
     else if (h === '#board') enterBoard();
     else leaveView();
-  } catch(e){ viewMsg('링크가 깨져 있음'); }
+  } catch(e){ viewMsg('링크가 깨져 있어요'); }
 }
 window.addEventListener('hashchange', checkHash);
 
@@ -864,7 +864,7 @@ function merge(list){
   return added;
 }
 $('#exportBtn').onclick = () => {
-  if (!items.length) { toast('백업할 게 없음'); return; }
+  if (!items.length) { toast('백업할 명령어가 없어요'); return; }
   const data = { app: 'ooc', version: 1, exported: new Date().toISOString(), snips, items: items.map(({ t, g, c }) => ({ t, g, c })) };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const d = new Date(), pad = n => String(n).padStart(2, '0');
@@ -886,8 +886,8 @@ $('#file').onchange = async e => {
       saveSnips(); renderSnips();
     }
     saveItems(); render();
-    toast(n ? `${n}개 불러옴` : '새로 추가된 거 없음');
-  } catch(err){ toast('파일을 못 읽음'); }
+    toast(n ? `${n}개를 불러왔어요` : '새로 추가된 게 없어요');
+  } catch(err){ toast('파일을 읽지 못했어요'); }
 };
 
 (async function init(){
