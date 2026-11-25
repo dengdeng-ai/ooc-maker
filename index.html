@@ -754,7 +754,7 @@ async function loadBoard(more){
     boardEnd = rows.length < PAGE;
     renderBoard();
   } catch(e){
-    if (!posts.length) $('#board').innerHTML = '<div class="empty">불러오지 못했어요</div>';
+    if (!posts.length) $('#board').innerHTML = '<div class="empty">불러오지 못했습니다.</div>';
     else toast('불러오지 못했습니다.');
   }
   boardBusy = false;
