@@ -394,7 +394,8 @@ async function copyText(text, msg){
 
 const ta = $('#fBody');
 let sel = { s: 0, e: 0 };
-['select','keyup','mouseup','input','blur'].forEach(ev => ta.addEventListener(ev, () => { sel = { s: ta.selectionStart, e: ta.selectionEnd }; }));
+['select','keyup','mouseup','input'].forEach(ev => ta.addEventListener(ev, () => { sel = { s: ta.selectionStart, e: ta.selectionEnd }; }));
+document.addEventListener('selectionchange', () => { if (document.activeElement === ta) sel = { s: ta.selectionStart, e: ta.selectionEnd }; });
 function updateCount(){ $('#charCount').textContent = [...ta.value].length.toLocaleString() + '자'; }
 ta.addEventListener('input', updateCount);
 const touch = matchMedia('(pointer:coarse)').matches;
@@ -419,12 +420,12 @@ function insertSnip(text){
   if (pair) {
     const lead = (!picked && before && !/[\s\[(*"「『{]$/.test(before)) ? ' ' : '';
     ins = lead + pair[0] + picked + pair[1];
-    caretS = s + lead.length + pair[0].length; caretE = caretS + picked.length;
+    caretS = picked ? s + ins.length : s + lead.length + pair[0].length; caretE = caretS;
   } else {
     const block = false;
     const needNL = block && before && !/\n$/.test(before);
     const needSpaceBefore = !block && before && !/\s$/.test(before) && /^[A-Za-z가-힣{]/.test(text) && !/[\[(*"「『{]$/.test(before);
-    const trail = /:$/.test(text) ? ' ' : '';
+    const trail = /:$/.test(text) && !/^\s/.test(ta.value.slice(e)) ? ' ' : '';
     ins = (needNL ? '\n' : needSpaceBefore ? ' ' : '') + text + trail;
     caretS = caretE = s + ins.length;
   }
@@ -483,11 +484,28 @@ function resetSnipForm(){
   renderSnips();
 }
 $('#snips').addEventListener('mousedown', e => { if (e.target.closest('.snip')) e.preventDefault(); });
+let touchSnip = null;
+$('#snips').addEventListener('touchstart', e => {
+  const b = e.target.closest('.snip'); if (!b) return;
+  e.preventDefault(); touchSnip = b;
+}, { passive: false });
+$('#snips').addEventListener('touchend', e => {
+  const b = touchSnip; touchSnip = null; if (!b) return;
+  const t = e.changedTouches[0];
+  const el = document.elementFromPoint(t.clientX, t.clientY);
+  if (!el || el.closest('.snip') !== b) return;
+  e.preventDefault();
+  handleSnip(b, el);
+}, { passive: false });
+$('#snips').addEventListener('touchcancel', () => { touchSnip = null; });
 $('#snips').onclick = e => {
   const b = e.target.closest('.snip'); if (!b) return;
+  handleSnip(b, e.target);
+};
+function handleSnip(b, target){
   const i = +b.dataset.i;
   if (!$('#snips').classList.contains('editing')) { insertSnip(snips[i].x); return; }
-  if (e.target.closest('.del')) {
+  if (target.closest('.del')) {
     snips.splice(i, 1); saveSnips(); resetSnipForm(); return;
   }
   snipIdx = i;
