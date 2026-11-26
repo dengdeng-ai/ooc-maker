@@ -274,7 +274,7 @@
       <button class="btn soft hidden" id="lShare">공유</button>
       <button class="btn main" id="lCopy">링크 복사</button>
     </div>
-    <input type="text" id="lSeries" class="hidden" placeholder="묶음 제목" style="margin-top:12px">
+    <input type="text" id="lSeries" class="hidden" placeholder="세트 제목" style="margin-top:12px">
     <input type="text" id="lNote" maxlength="100" placeholder="한 줄 설명 (선택)" style="margin-top:8px">
     <div class="post-row hidden" id="postRow">
       <label class="chk"><input type="checkbox" id="lAdult">성인</label>
@@ -978,7 +978,7 @@ function renderBoard(){
     <div class="item" data-pid="${p.id}">
       <div class="item-top">
         <div class="info" data-act="go" style="cursor:pointer">
-          <div class="name">${p.adult ? '<span class="badge">성인</span>' : ''}${multi ? `<span class="badge soft">묶음 ${p.count}</span>` : ''}${esc(p.title)}</div>
+          <div class="name">${p.adult ? '<span class="badge">성인</span>' : ''}${multi ? `<span class="badge soft">세트 ${p.count}</span>` : ''}${esc(p.title)}</div>
           ${p.note ? `<div class="note">${esc(p.note)}</div>` : ''}
           <div class="meta">${p.locked ? ICON.lock : ''}${when(p.created_at)}${admin && p.reports ? ` · <span style="color:var(--warn)">신고 ${p.reports}${p.reports >= 3 ? ' · 숨김' : ''}</span>` : ''}</div>
         </div>
@@ -1092,9 +1092,9 @@ $('#postBtn').onclick = async () => {
   const list = boardItems.map(({ t, c }) => ({ t: String(t || '').trim().slice(0, 60) || '제목 없음', c: String(c || '') })).filter(x => x.c.trim());
   const n = list.length;
   if (!n) return;
-  if (n > 30) { toast('묶음은 30개까지만 게시할 수 있습니다.'); return; }
+  if (n > 30) { toast('세트는 30개까지만 게시할 수 있습니다.'); return; }
   if (list.some(x => x.c.length > 4000)) { toast('OOC 하나당 4,000자까지만 게시할 수 있습니다.'); return; }
-  if (list.reduce((a, x) => a + x.c.length, 0) > 20000) { toast('묶음 전체는 20,000자까지만 게시할 수 있습니다.'); return; }
+  if (list.reduce((a, x) => a + x.c.length, 0) > 20000) { toast('세트 전체는 20,000자까지만 게시할 수 있습니다.'); return; }
   const title = n > 1 ? ($('#lSeries').value.trim() || `${list[0].t} 외 ${n - 1}개`).slice(0, 60) : list[0].t;
   const c = n > 1 ? JSON.stringify({ i: list }) : list[0].c;
   const note = $('#lNote').value.trim().slice(0, 100);
