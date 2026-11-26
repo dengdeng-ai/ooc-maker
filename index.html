@@ -88,6 +88,9 @@
   .sbtn.spin svg{animation:spin .6s linear}
   @keyframes spin{to{transform:rotate(360deg)}}
   .note{font-size:13px;color:var(--sub);margin-top:2px;word-break:break-word}
+  #eItems textarea{min-height:120px;margin-top:6px}
+  #eItems .sub{margin-top:12px}
+  #eItems .sub input{margin-top:0}
   .badge.soft{background:var(--accent-soft);color:var(--ok)}
   .sub{margin-top:10px;padding-left:10px;border-left:2px solid var(--line)}
   .sub-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -237,6 +240,19 @@
     <div class="name">직접 복사</div>
     <textarea id="cText" readonly style="margin-top:10px;min-height:140px"></textarea>
     <div class="bar"><button class="btn" id="cClose">닫기</button></div>
+  </div>
+</div>
+
+<div class="modal" id="editBox">
+  <div class="card">
+    <div class="name">게시물 수정</div>
+    <input type="text" id="eTitle" maxlength="60" placeholder="제목" style="margin-top:10px">
+    <input type="text" id="eNote" maxlength="100" placeholder="한 줄 설명 (선택)" style="margin-top:8px">
+    <div id="eItems"></div>
+    <div class="bar">
+      <button class="btn" id="eClose">취소</button>
+      <button class="btn main" id="eSave">저장</button>
+    </div>
   </div>
 </div>
 
@@ -862,9 +878,10 @@ async function tryUnlock(){
     if (lockPost) {
       const p = lockPost; lockPost = null;
       const d = JSON.parse(plain);
-      p.open = Array.isArray(d.i) ? d.i : [{ t: p.title, c: d.c }]; p.expanded = true;
+      p.open = Array.isArray(d.i) ? d.i : [{ t: p.title, c: d.c }]; p.expanded = true; p.pw = pw;
       $('#lockBox').classList.remove('show'); lockedData = '';
       renderBoard();
+      if (p.editAfter) { p.editAfter = false; openEditor(p); }
     } else {
       const data = await unpack(plain);
       $('#lockBox').classList.remove('show'); lockedData = '';
@@ -976,6 +993,7 @@ function renderBoard(){
             : `${multi ? '' : `<button class="ib copy" data-act="copy" data-k="0" title="복사">${ICON.copy}</button>`}
                <button class="ib" data-act="keep" title="${multi ? '전부 내 OOC로 저장' : '내 OOC로 저장'}">${ICON.save}</button>`}
           ${admin && p.reports ? `<button class="ib" data-act="restore" title="신고 초기화">${ICON.done}</button>` : ''}
+          ${mine[p.id] ? `<button class="ib" data-act="edit" title="수정">${ICON.edit}</button>` : ''}
           ${mine[p.id] || admin ? `<button class="ib del" data-act="del" title="삭제">${ICON.del}</button>` : `<button class="ib del" data-act="report" title="신고"${reported[p.id] ? ' disabled style="opacity:.35"' : ''}>${ICON.flag}</button>`}
         </div>
       </div>
@@ -1000,6 +1018,13 @@ $('#board').onclick = async e => {
   const act = btn.dataset.act, list = postList(p) || [];
   if (act === 'fold') { p.expanded = !p.expanded; renderBoard(); return; }
   if (act === 'go') { location.hash = '#post=' + p.id; return; }
+  if (act === 'edit') {
+    if (p.locked && !p.pw) {
+      p.editAfter = true; lockPost = p; lockedData = p.body; $('#uPw').value = '';
+      $('#lockBox').classList.add('show'); setTimeout(() => $('#uPw').focus(), 50);
+    } else openEditor(p);
+    return;
+  }
   if (act === 'open') {
     lockPost = p; lockedData = p.body; $('#uPw').value = '';
     $('#lockBox').classList.add('show');
@@ -1100,6 +1125,48 @@ $('#postBtn').onclick = async () => {
     if (boardLoaded) loadBoard(false);
   } catch(e){ toast(/banned/.test(e.message) ? '게시할 수 없는 표현이 포함되어 있습니다.' : '게시하지 못했습니다.'); }
   $('#postBtn').disabled = false;
+};
+
+let editing = null;
+function openEditor(p){
+  const list = postList(p); if (!list) return;
+  editing = p;
+  const multi = list.length > 1;
+  $('#eTitle').value = p.title;
+  $('#eNote').value = p.note || '';
+  $('#eItems').innerHTML = list.map((x, k) => multi
+    ? `<div class="sub"><input type="text" class="eT" maxlength="60" value="${esc(x.t)}"><textarea class="eC" spellcheck="false">${esc(x.c)}</textarea></div>`
+    : `<textarea class="eC" spellcheck="false" style="margin-top:8px">${esc(x.c)}</textarea>`).join('');
+  $('#editBox').classList.add('show');
+}
+function closeEditor(){ $('#editBox').classList.remove('show'); editing = null; }
+$('#eClose').onclick = closeEditor;
+$('#editBox').addEventListener('click', e => { if (e.target.id === 'editBox') closeEditor(); });
+$('#eSave').onclick = async () => {
+  const p = editing; if (!p) return;
+  const multi = (p.count || 1) > 1;
+  const cs = [...document.querySelectorAll('#eItems .eC')].map(t => t.value);
+  const ts = [...document.querySelectorAll('#eItems .eT')].map(t => t.value.trim().slice(0, 60) || '제목 없음');
+  const title = $('#eTitle').value.trim().slice(0, 60);
+  const note = $('#eNote').value.trim().slice(0, 100);
+  if (!title) { toast('제목을 입력해 주세요.'); return; }
+  if (cs.some(c => !c.trim())) { toast('내용을 입력해 주세요.'); return; }
+  if (cs.some(c => c.length > 4000)) { toast('OOC 하나당 4,000자까지만 게시할 수 있습니다.'); return; }
+  if (cs.reduce((a, c) => a + c.length, 0) > 20000) { toast('세트 전체는 20,000자까지만 게시할 수 있습니다.'); return; }
+  const list = multi ? cs.map((c, k) => ({ t: ts[k], c })) : [{ t: title, c: cs[0] }];
+  const plain = multi ? JSON.stringify({ i: list }) : cs[0];
+  $('#eSave').disabled = true;
+  try {
+    const body = p.locked ? await lock(multi ? plain : JSON.stringify({ c: cs[0] }), p.pw) : plain;
+    const ok = await sb('/rest/v1/rpc/update_post', { method: 'POST', body: JSON.stringify({ pid: p.id, token: mine[p.id], new_title: title, new_body: body, new_note: note }) });
+    if (!ok) { toast('수정할 수 없습니다.'); }
+    else {
+      Object.assign(p, { title, note: note || null, body });
+      if (p.locked) p.open = list;
+      closeEditor(); renderBoard(); toast('수정되었습니다.');
+    }
+  } catch(e){ toast(/banned/.test(e.message) ? '게시할 수 없는 표현이 포함되어 있습니다.' : '수정하지 못했습니다.'); }
+  $('#eSave').disabled = false;
 };
 
 async function openPost(id){
