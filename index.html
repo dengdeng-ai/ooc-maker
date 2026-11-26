@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-<title>OOC 메이커</title>
-<meta property="og:title" content="OOC 메이커">
+<title>OOC 서랍</title>
+<meta property="og:title" content="OOC 서랍">
 <meta name="description" content="OOC를 만들고 저장하고 공유하는 곳">
 <meta property="og:description" content="OOC를 만들고 저장하고 공유하는 곳">
-<meta property="og:site_name" content="OOC 메이커">
+<meta property="og:site_name" content="OOC 서랍">
 <meta name="twitter:description" content="OOC를 만들고 저장하고 공유하는 곳">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://dengdeng-ai.github.io/ooc-maker/">
@@ -19,7 +19,7 @@
 <link rel="icon" href="favicon.svg?v=3" type="image/svg+xml">
 <link rel="icon" href="favicon-32.png?v=3" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="apple-touch-icon.png?v=3">
-<meta name="twitter:title" content="OOC 메이커">
+<meta name="twitter:title" content="OOC 서랍">
 <script>
   try{
     var t=localStorage.getItem('ooc.theme');
@@ -183,7 +183,7 @@
 </head>
 <body>
 <div class="wrap" id="main">
-  <div class="head"><h1>OOC 메이커</h1><div class="row" style="gap:14px"><a class="pill" href="#board">공유 게시판</a><button class="theme-btn" id="themeBtn" aria-label="다크 모드 전환"></button></div></div>
+  <div class="head"><h1>OOC 서랍</h1><div class="row" style="gap:14px"><a class="pill" href="#board">공유 게시판</a><button class="theme-btn" id="themeBtn" aria-label="다크 모드 전환"></button></div></div>
 
   <div class="card" id="composer">
     <div class="card-head">
@@ -260,7 +260,7 @@
 </div>
 
 <div class="wrap hidden" id="view">
-  <div class="head"><div class="title-row"><a class="back" id="homeLink" href="./" aria-label="뒤로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></a><h1 id="viewH">OOC 메이커</h1></div><div class="row" style="gap:14px"><button class="ib sbtn hidden" id="postLink" title="링크 복사" aria-label="링크 복사"></button><button class="theme-btn" aria-label="다크 모드 전환"></button></div></div>
+  <div class="head"><div class="title-row"><a class="back" id="homeLink" href="./" aria-label="뒤로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></a><h1 id="viewH">OOC 서랍</h1></div><div class="row" style="gap:14px"><button class="ib sbtn hidden" id="postLink" title="링크 복사" aria-label="링크 복사"></button><button class="theme-btn" aria-label="다크 모드 전환"></button></div></div>
   <div id="viewBody"></div>
   <div class="card hidden" id="pubPanel">
     <input type="text" id="lSeries" class="hidden" maxlength="60" placeholder="세트 제목">
@@ -813,7 +813,7 @@ function enterView(){
   $('#view').classList.toggle('owner', owner);
   $('#pubPanel').classList.toggle('hidden', !owner);
   $('#homeLink').href = owner ? '#' : fromPost ? '#board' : location.pathname + location.search;
-  $('#viewH').textContent = fromPost ? 'OOC 게시판' : 'OOC 메이커';
+  $('#viewH').textContent = fromPost ? 'OOC 게시판' : 'OOC 서랍';
   $('#postLink').classList.toggle('hidden', !fromPost);
   if (wasHidden) window.scrollTo(0, 0);
 }
