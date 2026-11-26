@@ -115,7 +115,9 @@
   .foot .link{font-size:12px;opacity:.7}
   .count{text-align:right;font-size:12px;color:var(--sub);margin-top:5px}
   .count + .bar{margin-top:6px}
-  #linkBox .card > input + input{margin-top:8px}
+  #pubPanel input + input{margin-top:8px}
+  #pubPanel .lbl2{font-size:12px;color:var(--sub);margin:0 0 8px}
+  #view.owner [data-v=save]{display:none}
   .btn{flex:1;padding:11px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--text);font:inherit;cursor:pointer;white-space:nowrap}
   .btn.main{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
   .btn.soft{background:var(--accent-soft);border-color:var(--accent-soft);color:var(--ok);font-weight:600}
@@ -188,7 +190,7 @@
     <div class="bar">
       <button class="btn icon" id="clearBtn" title="비우기" aria-label="비우기"></button>
       <button class="btn icon" id="swapBtn" title="{{char}}↔NPC, {{user}}↔PC" aria-label="표현 전환"></button>
-      <button class="btn" id="shareNow">공유</button>
+      <button class="btn" id="shareNow">게시하기</button>
       <button class="btn soft" id="copyNow">복사</button>
       <button class="btn main" id="saveBtn">저장</button>
     </div>
@@ -204,7 +206,7 @@
       <button class="link" id="selAll">전체 선택</button>
       <span class="selcount" id="selCount"></span>
       <button class="btn sm" id="selCancel">취소</button>
-      <button class="btn sm main" id="selShare">공유</button>
+      <button class="btn sm main" id="selShare">게시하기</button>
     </div>
     <div id="list"></div>
   </div>
@@ -235,6 +237,19 @@
 <div class="wrap hidden" id="view">
   <div class="head"><div class="title-row"><a class="back" id="homeLink" href="./" aria-label="뒤로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></a><h1 id="viewH">OOC 메이커</h1></div><div class="row" style="gap:14px"><button class="ib sbtn hidden" id="postLink" title="링크 복사" aria-label="링크 복사"></button><button class="theme-btn" aria-label="다크 모드 전환"></button></div></div>
   <div id="viewBody"></div>
+  <div class="card hidden" id="pubPanel">
+    <input type="text" id="lSeries" class="hidden" maxlength="60" placeholder="세트 제목">
+    <input type="text" id="lNote" maxlength="100" placeholder="한 줄 설명 (선택)">
+    <input type="text" id="lPw" placeholder="비밀번호 (선택)" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <div class="bar">
+      <button class="btn soft hidden" id="lShare">공유</button>
+      <button class="btn main" id="lCopy">링크 복사</button>
+    </div>
+    <div class="post-row hidden" id="postRow">
+      <label class="chk"><input type="checkbox" id="lAdult">성인</label>
+      <button class="btn sm soft" id="postBtn">공유 게시판에 올리기</button>
+    </div>
+  </div>
 </div>
 
 <div class="modal" id="copyBox">
@@ -277,25 +292,6 @@
     <div class="bar">
       <button class="btn" id="uClose">닫기</button>
       <button class="btn main" id="uOpen">열기</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal" id="linkBox">
-  <div class="card">
-    <div class="name" id="lTitle"></div>
-    <input type="text" id="lPw" placeholder="비밀번호 (선택)" autocomplete="off" autocapitalize="off" spellcheck="false" style="margin-top:10px">
-    <input type="text" id="lUrl" readonly style="color:var(--sub)">
-    <div class="bar">
-      <button class="btn" id="lClose">닫기</button>
-      <button class="btn soft hidden" id="lShare">공유</button>
-      <button class="btn main" id="lCopy">링크 복사</button>
-    </div>
-    <input type="text" id="lSeries" class="hidden" placeholder="세트 제목" style="margin-top:12px">
-    <input type="text" id="lNote" maxlength="100" placeholder="한 줄 설명 (선택)" style="margin-top:8px">
-    <div class="post-row hidden" id="postRow">
-      <label class="chk"><input type="checkbox" id="lAdult">성인</label>
-      <button class="btn sm soft" id="postBtn">게시판에 올리기</button>
     </div>
   </div>
 </div>
@@ -609,7 +605,7 @@ function render(){
         </div>
         <div class="acts${selMode ? ' hidden' : ''}">
           <button class="ib copy" data-act="copy" title="복사">${ICON.copy}</button>
-          <button class="ib" data-act="share" title="공유">${ICON.share}</button>
+          <button class="ib" data-act="share" title="게시하기">${ICON.share}</button>
           <button class="ib" data-act="edit" title="수정">${ICON.edit}</button>
           <button class="ib del" data-act="del" title="삭제">${ICON.del}</button>
         </div>
@@ -694,25 +690,30 @@ async function buildLink(){
   try { url = location.origin + location.pathname + (pw ? '#e=' + await lock(linkPacked, pw) : '#p=' + linkPacked); }
   catch(e){ if (seq === linkSeq) toast('링크를 만들지 못했습니다.'); return; }
   if (seq !== linkSeq) return;
-  linkUrl = url; $('#lUrl').value = url;
+  linkUrl = url;
+  if (publishing) history.replaceState(null, '', url);
   $('#lCopy').disabled = $('#lShare').disabled = false;
 }
 let boardItems = null, linkPayload = null;
+let publishing = false, linkTitle = '';
 async function openLink(payload, title){
   boardItems = (payload.i && payload.i.length && !payload.s) ? payload.i : null;
   $('#postRow').classList.toggle('hidden', !boardItems);
   $('#lSeries').classList.toggle('hidden', !boardItems || boardItems.length < 2);
-  $('#lSeries').value = '';
-  $('#lNote').value = '';
-  linkPayload = payload;
+  $('#lSeries').value = ''; $('#lNote').value = ''; $('#lPw').value = '';
   $('#lAdult').checked = false;
+  linkPayload = payload; linkTitle = title;
   try { linkPacked = await pack(payload); }
   catch(e){ toast('링크를 만들지 못했습니다.'); return; }
-  $('#lTitle').textContent = title;
-  $('#lPw').value = '';
   $('#lShare').classList.toggle('hidden', !navigator.share);
-  await buildLink();
-  $('#linkBox').classList.add('show');
+  linkUrl = location.origin + location.pathname + '#p=' + linkPacked;
+  publishing = true;
+  location.hash = '#p=' + linkPacked;
+}
+function previewPublish(){
+  const note = $('#lNote').value.trim();
+  const head = boardItems && boardItems.length > 1 ? ($('#lSeries').value.trim() || '') : '';
+  openShared({ ...linkPayload, ...(note ? { n: note } : {}), ...(head ? { h: head } : {}) });
 }
 let noteTimer;
 $('#lNote').addEventListener('input', () => {
@@ -721,17 +722,14 @@ $('#lNote').addEventListener('input', () => {
   noteTimer = setTimeout(async () => {
     const note = $('#lNote').value.trim();
     try { linkPacked = await pack(note ? { ...linkPayload, n: note } : linkPayload); } catch(e){}
-    buildLink();
+    buildLink(); previewPublish();
   }, 250);
 });
+$('#lSeries').addEventListener('input', () => { clearTimeout(noteTimer); noteTimer = setTimeout(previewPublish, 250); });
 let pwTimer;
 $('#lPw').addEventListener('input', () => { $('#lCopy').disabled = $('#lShare').disabled = true; clearTimeout(pwTimer); pwTimer = setTimeout(buildLink, 250); });
-const closeLink = () => $('#linkBox').classList.remove('show');
-$('#lClose').onclick = closeLink;
 $('#lCopy').onclick = () => { if (!$('#lCopy').disabled) copyText(linkUrl, '링크가 복사되었습니다.'); };
-$('#lShare').onclick = async () => { try { await navigator.share({ title: $('#lTitle').textContent, url: linkUrl }); } catch(e){} };
-$('#lUrl').onclick = e => e.target.select();
-$('#linkBox').addEventListener('click', e => { if (e.target.id === 'linkBox') closeLink(); });
+$('#lShare').onclick = async () => { try { await navigator.share({ title: linkTitle, url: linkUrl }); } catch(e){} };
 
 const pick = ({ t, g, c }) => ({ t, g, c });
 function share(it){ openLink({ i: [pick(it)] }, it.t); }
@@ -770,14 +768,20 @@ function enterBoard(){
   if (!boardLoaded) { boardLoaded = true; loadBoard(false); }
 }
 function enterView(){
+  const wasHidden = $('#view').classList.contains('hidden');
   showPage('view');
   const fromPost = location.hash.startsWith('#post=');
-  $('#homeLink').href = fromPost ? '#board' : location.pathname + location.search;
+  const owner = publishing && !fromPost;
+  $('#view').classList.toggle('owner', owner);
+  $('#pubPanel').classList.toggle('hidden', !owner);
+  $('#homeLink').href = owner ? '#' : fromPost ? '#board' : location.pathname + location.search;
   $('#viewH').textContent = fromPost ? 'OOC 게시판' : 'OOC 메이커';
   $('#postLink').classList.toggle('hidden', !fromPost);
-  window.scrollTo(0, 0);
+  if (wasHidden) window.scrollTo(0, 0);
 }
 function leaveView(){
+  publishing = false;
+  $('#view').classList.remove('owner'); $('#pubPanel').classList.add('hidden');
   incoming = null; $('#viewBody').innerHTML = '';
   showPage('main');
 }
@@ -864,9 +868,6 @@ $('#viewBody').onclick = e => {
     btn.textContent = '저장 완료'; btn.disabled = true;
   }
 };
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && $('#linkBox').classList.contains('show')) closeLink();
-});
 let lockedData = '', lockPost = null;
 function closeLock(){
   $('#lockBox').classList.remove('show'); lockedData = '';
@@ -1123,7 +1124,8 @@ $('#postBtn').onclick = async () => {
       body: JSON.stringify({ title, body, adult, locked: !!pw, count: n, ...(note ? { note } : {}), del_hash: await sha256hex(token) })
     });
     if (rows && rows[0]) { mine[rows[0].id] = token; writeLS(MINE_KEY, mine); }
-    closeLink(); toast('게시되었습니다.');
+    toast('게시되었습니다.');
+    if (rows && rows[0]) { publishing = false; location.hash = '#post=' + rows[0].id; }
     if (boardLoaded) loadBoard(false);
   } catch(e){ toast(/banned/.test(e.message) ? '게시할 수 없는 표현이 포함되어 있습니다.' : '게시하지 못했습니다.'); }
   $('#postBtn').disabled = false;
