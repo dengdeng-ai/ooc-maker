@@ -98,7 +98,7 @@
   .sbtn.on{color:var(--text)}
   .sbtn.spin svg{animation:spin .6s linear}
   @keyframes spin{to{transform:rotate(360deg)}}
-  .note{font-size:13px;color:var(--sub);margin-top:2px;word-break:break-word}
+  .note{font-size:13px;color:var(--sub);margin-top:2px;word-break:keep-all;overflow-wrap:anywhere}
   #eItems textarea{min-height:120px;margin-top:6px}
   #eItems .sub{margin-top:12px}
   #eItems .sub input{margin-top:0}
@@ -223,6 +223,7 @@
 
   <div class="card">
     <div class="card-head" style="margin-bottom:0"><div class="t">백업</div></div>
+    <div class="note" style="margin-top:4px">저장한 OOC는 이 기기의 이 브라우저에만 보관됩니다. 브라우저 기록을 지우거나 기기를 바꾸면 사라질 수 있으니 내보내기로 파일을 보관해 주세요.</div>
     <div class="bar">
       <button class="btn" id="importBtn">불러오기</button>
       <button class="btn soft" id="exportBtn">내보내기</button>
