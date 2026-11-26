@@ -87,6 +87,7 @@
   .sbtn.on{color:var(--text)}
   .sbtn.spin svg{animation:spin .6s linear}
   @keyframes spin{to{transform:rotate(360deg)}}
+  .note{font-size:13px;color:var(--sub);margin-top:2px;word-break:break-word}
   .badge.soft{background:var(--accent-soft);color:var(--ok)}
   .sub{margin-top:10px;padding-left:10px;border-left:2px solid var(--line)}
   .sub-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -268,6 +269,7 @@
       <button class="btn main" id="lCopy">링크 복사</button>
     </div>
     <input type="text" id="lSeries" class="hidden" placeholder="시리즈 제목" style="margin-top:12px">
+    <input type="text" id="lNote" maxlength="100" placeholder="한 줄 설명 (선택)" style="margin-top:8px">
     <div class="post-row hidden" id="postRow">
       <label class="chk"><input type="checkbox" id="lAdult">성인</label>
       <button class="btn sm soft" id="postBtn">게시판에 게시</button>
@@ -663,12 +665,14 @@ async function buildLink(){
   linkUrl = url; $('#lUrl').value = url;
   $('#lCopy').disabled = $('#lShare').disabled = false;
 }
-let boardItems = null;
+let boardItems = null, linkPayload = null;
 async function openLink(payload, title){
   boardItems = (payload.i && payload.i.length && !payload.s) ? payload.i : null;
   $('#postRow').classList.toggle('hidden', !boardItems);
   $('#lSeries').classList.toggle('hidden', !boardItems || boardItems.length < 2);
   $('#lSeries').value = '';
+  $('#lNote').value = '';
+  linkPayload = payload;
   $('#lAdult').checked = false;
   try { linkPacked = await pack(payload); }
   catch(e){ toast('링크를 만들지 못했습니다.'); return; }
@@ -678,6 +682,16 @@ async function openLink(payload, title){
   await buildLink();
   $('#linkBox').classList.add('show');
 }
+let noteTimer;
+$('#lNote').addEventListener('input', () => {
+  $('#lCopy').disabled = $('#lShare').disabled = true;
+  clearTimeout(noteTimer);
+  noteTimer = setTimeout(async () => {
+    const note = $('#lNote').value.trim();
+    try { linkPacked = await pack(note ? { ...linkPayload, n: note } : linkPayload); } catch(e){}
+    buildLink();
+  }, 250);
+});
 let pwTimer;
 $('#lPw').addEventListener('input', () => { $('#lCopy').disabled = $('#lShare').disabled = true; clearTimeout(pwTimer); pwTimer = setTimeout(buildLink, 250); });
 const closeLink = () => $('#linkBox').classList.remove('show');
@@ -760,12 +774,14 @@ function openShared(o){
   if (!list.length && !sn.length) { viewMsg('내용이 없는 링크입니다.'); return; }
   incoming = { list, sn };
   enterView();
+  const note = typeof o.n === 'string' && o.n.trim() ? `<div class="note">${esc(o.n.trim().slice(0, 100))}</div>` : '';
   let html = '';
   if (list.length === 1 && !sn.length) {
     const it = list[0];
     html = `
     <div class="card">
       <div class="name">${esc(it.t)}</div>
+      ${note}
       <pre class="detail">${esc(it.c)}</pre>
       <div class="bar">
         <button class="btn soft" data-v="copy" data-i="0">복사</button>
@@ -775,7 +791,7 @@ function openShared(o){
   } else {
     if (list.length) html += `
     <div class="card">
-      <div class="card-head"><div class="t">OOC<small>${list.length}개</small></div></div>
+      <div class="card-head" style="flex-direction:column;align-items:flex-start;gap:0"><div class="t">OOC<small>${list.length}개</small></div>${note}</div>
       ${list.map((it, i) => `
       <div class="item">
         <div class="item-top">
@@ -900,7 +916,7 @@ async function loadBoard(more){
     const q = $('#bq').value.trim();
     const quoted = '"*' + q.replace(/[\\"]/g, m => '\\' + m) + '*"';
     const filter = q ? '&or=' + encodeURIComponent(`(title.ilike.${quoted},and(locked.is.false,body.ilike.${quoted}))`) : '';
-    const rows = await sbRows(`/rest/v1/posts?select=id,created_at,title,body,adult,locked,count${admin ? ',reports' : ''}&order=id.desc&limit=${PAGE}${before}${filter}`);
+    const rows = await sbRows(`/rest/v1/posts?select=id,created_at,title,body,adult,locked,count,note${admin ? ',reports' : ''}&order=id.desc&limit=${PAGE}${before}${filter}`);
     if (seq !== boardSeq) return;
     const opened = Object.fromEntries(posts.filter(p => p.open != null).map(p => [p.id, p.open]));
     rows.forEach(r => { if (opened[r.id] != null) r.open = opened[r.id]; });
@@ -934,6 +950,7 @@ function renderBoard(){
       <div class="item-top">
         <div class="info">
           <div class="name">${p.adult ? '<span class="badge">성인</span>' : ''}${multi ? `<span class="badge soft">시리즈 ${p.count}</span>` : ''}${esc(p.title)}</div>
+          ${p.note ? `<div class="note">${esc(p.note)}</div>` : ''}
           <div class="meta">${p.locked ? ICON.lock : ''}${when(p.created_at)}${admin && p.reports ? ` · <span style="color:var(--warn)">신고 ${p.reports}${p.reports >= 3 ? ' · 숨김' : ''}</span>` : ''}</div>
         </div>
         <div class="acts">
@@ -1049,6 +1066,7 @@ $('#postBtn').onclick = async () => {
   if (list.reduce((a, x) => a + x.c.length, 0) > 20000) { toast('시리즈 전체는 20,000자까지만 게시할 수 있습니다.'); return; }
   const title = n > 1 ? ($('#lSeries').value.trim() || `${list[0].t} 외 ${n - 1}개`).slice(0, 60) : list[0].t;
   const c = n > 1 ? JSON.stringify({ i: list }) : list[0].c;
+  const note = $('#lNote').value.trim().slice(0, 100);
   if (!confirm(adult ? '성인 OOC로 게시판에 게시하시겠습니까?' : '게시판에 게시하시겠습니까? 모든 사용자가 열람할 수 있습니다.')) return;
   $('#postBtn').disabled = true;
   try {
@@ -1056,7 +1074,7 @@ $('#postBtn').onclick = async () => {
     const body = pw ? await lock(n > 1 ? c : JSON.stringify({ c }), pw) : c;
     const rows = await sb('/rest/v1/posts?select=id', {
       method: 'POST', headers: { Prefer: 'return=representation' },
-      body: JSON.stringify({ title, body, adult, locked: !!pw, count: n, del_hash: await sha256hex(token) })
+      body: JSON.stringify({ title, body, adult, locked: !!pw, count: n, ...(note ? { note } : {}), del_hash: await sha256hex(token) })
     });
     if (rows && rows[0]) { mine[rows[0].id] = token; writeLS(MINE_KEY, mine); }
     closeLink(); toast('게시되었습니다.');
