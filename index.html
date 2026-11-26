@@ -114,6 +114,8 @@
   #savedCard.folded .card-head{margin-bottom:0}
   #list .body{max-height:3.2em}
   #list .body.open{max-height:none}
+  .dl{display:inline-flex;align-items:center;gap:3px;opacity:.75}
+  .dl svg{width:12px;height:12px}
   .sortbar{display:flex;gap:6px;margin-bottom:4px}
   .sortbar .chip{font-size:12px;padding:3px 11px}
   .badge.soft{background:var(--accent-soft);color:var(--ok)}
@@ -1044,7 +1046,7 @@ function renderBoard(){
           <div class="name">${p.adult ? '<span class="badge">성인</span>' : ''}${multi ? `<span class="badge soft">세트 ${p.count}</span>` : ''}${esc(p.title)}</div>
           ${p.note ? `<div class="note">${esc(p.note)}</div>` : ''}
           ${(() => {
-            const parts = [p.downloads ? `다운로드 ${p.downloads}` : '', admin && p.reports ? `<span style="color:var(--warn)">신고 ${p.reports}${p.reports >= 3 ? ' · 숨김' : ''}</span>` : ''].filter(Boolean);
+            const parts = [p.downloads ? `<span class="dl">${ICON.save}${p.downloads}</span>` : '', admin && p.reports ? `<span style="color:var(--warn)">신고 ${p.reports}${p.reports >= 3 ? ' · 숨김' : ''}</span>` : ''].filter(Boolean);
             return p.locked || parts.length ? `<div class="meta">${p.locked ? ICON.lock : ''}${parts.join(' · ')}</div>` : '';
           })()}
         </div>
