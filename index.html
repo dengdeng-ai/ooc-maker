@@ -114,6 +114,8 @@
   #savedCard.folded .card-head{margin-bottom:0}
   #list .body{max-height:3.2em}
   #list .body.open{max-height:none}
+  .sortbar{display:flex;gap:6px;margin-bottom:4px}
+  .sortbar .chip{font-size:12px;padding:3px 11px}
   .badge.soft{background:var(--accent-soft);color:var(--ok)}
   .sub{margin-top:10px;padding-left:10px;border-left:2px solid var(--line)}
   .sub-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -253,6 +255,7 @@
       <div class="row" style="gap:10px"><button class="link hidden" id="adminOut">로그아웃</button><button class="ib sbtn" id="bqBtn" title="검색" aria-label="검색"></button><button class="ib sbtn" id="boardReload" title="새로고침" aria-label="새로고침"></button></div>
     </div>
     <input type="search" id="bq" class="search hidden" placeholder="검색">
+    <div class="sortbar" id="bsort"><button class="chip on" data-s="new">최신순</button><button class="chip" data-s="top">인기순</button></div>
     <div id="board"></div>
     <button class="btn sm more hidden" id="boardMore">더 보기</button>
   </div>
@@ -827,7 +830,7 @@ function enterView(){
   if (wasHidden) window.scrollTo(0, 0);
 }
 function leaveView(){
-  publishing = false;
+  publishing = false; viewPostId = null;
   $('#view').classList.remove('owner'); $('#pubPanel').classList.add('hidden');
   incoming = null; $('#viewBody').innerHTML = '';
   showPage('main');
@@ -903,10 +906,10 @@ $('#viewBody').onclick = e => {
   const btn = e.target.closest('[data-v]'); if (!btn || !incoming) return;
   if (btn.dataset.v === 'copy') {
     const it = incoming.list[+btn.dataset.i]; if (!it) return;
-    copyText(it.c);
+    copyText(it.c); countDownload(viewPostId);
     if (btn.classList.contains('ib')) { btn.innerHTML = ICON.done; setTimeout(() => { btn.innerHTML = ICON.copy; }, 1200); }
   } else if (btn.dataset.v === 'save') {
-    const n = merge(incoming.list);
+    const n = merge(incoming.list); countDownload(viewPostId);
     let m = 0;
     incoming.sn.forEach(x => { if (!snips.some(o => o.l === x.l && o.x === x.x)) { snips.push(x); m++; } });
     if (m) { saveSnips(); renderSnips(); }
@@ -949,7 +952,15 @@ const SB_URL = 'https://qzftfgsfqwprbeznioqa.supabase.co';
 const SB_KEY = 'sb_publishable_b45_lLCMOjTgQs0zScsc0w_oYVdm9Q7';
 const MINE_KEY = 'ooc.mine.v1';
 const PAGE = 30;
-let posts = [], boardBusy = false, boardEnd = false, boardSeq = 0;
+let posts = [], boardBusy = false, boardEnd = false, boardSeq = 0, boardSort = 'new';
+const counted = readLS('ooc.counted.v1') || {};
+function countDownload(id){
+  if (!id || counted[id]) return;
+  counted[id] = 1; writeLS('ooc.counted.v1', counted);
+  const p = posts.find(x => x.id === id); if (p) p.downloads = (p.downloads || 0) + 1;
+  if (p) setTimeout(renderBoard, 1300);
+  sb('/rest/v1/rpc/bump_download', { method: 'POST', body: JSON.stringify({ pid: id }) }).catch(() => {});
+}
 const sbRows = path => sb(path);
 const mine = readLS(MINE_KEY) || {};
 const reported = readLS('ooc.reported.v1') || {};
@@ -977,7 +988,7 @@ async function authToken(){
 async function sb(path, opt = {}){
   const tok = await authToken();
   const auth = tok ? { Authorization: 'Bearer ' + tok } : {};
-  const res = await fetch(SB_URL + path, { ...opt, headers: { apikey: SB_KEY, 'Content-Type': 'application/json', ...auth, ...(opt.headers || {}) } });
+  const res = await fetch(SB_URL + path, { cache: 'no-store', ...opt, headers: { apikey: SB_KEY, 'Content-Type': 'application/json', ...auth, ...(opt.headers || {}) } });
   if (!res.ok) throw new Error(res.status + ' ' + await res.text());
   const t = await res.text();
   return t ? JSON.parse(t) : null;
@@ -996,11 +1007,12 @@ async function loadBoard(more){
   const seq = ++boardSeq; boardBusy = true;
   if (!more) { boardEnd = false; if (!posts.length) $('#board').innerHTML = '<div class="empty">불러오는 중입니다.</div>'; }
   try {
-    const before = more && posts.length ? '&id=lt.' + posts[posts.length - 1].id : '';
+    const top = boardSort === 'top';
+    const before = more && posts.length ? (top ? '&offset=' + posts.length : '&id=lt.' + posts[posts.length - 1].id) : '';
     const q = $('#bq').value.trim();
     const quoted = '"*' + q.replace(/[\\"]/g, m => '\\' + m) + '*"';
     const filter = q ? '&or=' + encodeURIComponent(`(title.ilike.${quoted},and(locked.is.false,body.ilike.${quoted}))`) : '';
-    const rows = await sbRows(`/rest/v1/posts?select=id,created_at,title,body,adult,locked,count,note${admin ? ',reports' : ''}&order=id.desc&limit=${PAGE}${before}${filter}`);
+    const rows = await sbRows(`/rest/v1/posts?select=id,created_at,title,body,adult,locked,count,note,downloads${admin ? ',reports' : ''}&order=${top ? 'downloads.desc,id.desc' : 'id.desc'}&limit=${PAGE}${before}${filter}`);
     if (seq !== boardSeq) return;
     const opened = Object.fromEntries(posts.filter(p => p.open != null).map(p => [p.id, p.open]));
     rows.forEach(r => { if (opened[r.id] != null) r.open = opened[r.id]; });
@@ -1035,7 +1047,7 @@ function renderBoard(){
         <div class="info" data-act="go" style="cursor:pointer">
           <div class="name">${p.adult ? '<span class="badge">성인</span>' : ''}${multi ? `<span class="badge soft">세트 ${p.count}</span>` : ''}${esc(p.title)}</div>
           ${p.note ? `<div class="note">${esc(p.note)}</div>` : ''}
-          <div class="meta">${p.locked ? ICON.lock : ''}${when(p.created_at)}${admin && p.reports ? ` · <span style="color:var(--warn)">신고 ${p.reports}${p.reports >= 3 ? ' · 숨김' : ''}</span>` : ''}</div>
+          <div class="meta">${p.locked ? ICON.lock : ''}${when(p.created_at)}${p.downloads ? ` · 다운로드 ${p.downloads}` : ''}${admin && p.reports ? ` · <span style="color:var(--warn)">신고 ${p.reports}${p.reports >= 3 ? ' · 숨김' : ''}</span>` : ''}</div>
         </div>
         <div class="acts">
           ${shut
@@ -1081,10 +1093,10 @@ $('#board').onclick = async e => {
     setTimeout(() => $('#uPw').focus(), 50);
   } else if (act === 'copy') {
     const x = list[+btn.dataset.k || 0]; if (!x) return;
-    copyText(x.c);
+    copyText(x.c); countDownload(p.id);
     btn.innerHTML = ICON.done; setTimeout(() => { btn.innerHTML = ICON.copy; }, 1200);
   } else if (act === 'keep') {
-    const n = merge(list.length > 1 ? list : [{ t: p.title, c: list[0] && list[0].c }]); saveItems(); render();
+    const n = merge(list.length > 1 ? list : [{ t: p.title, c: list[0] && list[0].c }]); saveItems(); render(); countDownload(p.id);
     toast(n ? '내 OOC에 저장되었습니다.' : '이미 저장되어 있습니다.');
   } else if (act === 'report') {
     if (reported[p.id]) return;
@@ -1147,6 +1159,12 @@ $('#adminOut').onclick = async () => {
 };
 setAdmin(admin);
 $('#boardMore').onclick = () => loadBoard(true);
+$('#bsort').onclick = e => {
+  const b = e.target.closest('[data-s]'); if (!b || b.dataset.s === boardSort) return;
+  boardSort = b.dataset.s;
+  document.querySelectorAll('#bsort .chip').forEach(c => c.classList.toggle('on', c === b));
+  posts = []; loadBoard(false);
+};
 
 $('#postBtn').onclick = async () => {
   if (!boardItems) return;
@@ -1220,14 +1238,17 @@ $('#eSave').onclick = async () => {
   $('#eSave').disabled = false;
 };
 
+let viewPostId = null;
 async function openPost(id){
+  viewPostId = null;
   viewMsg('불러오는 중입니다.');
   let p;
   try {
-    const rows = await sb(`/rest/v1/posts?id=eq.${encodeURIComponent(id)}&select=id,created_at,title,body,adult,locked,count,note`);
+    const rows = await sb(`/rest/v1/posts?id=eq.${encodeURIComponent(id)}&select=id,created_at,title,body,adult,locked,count,note,downloads`);
     p = rows && rows[0];
   } catch(e){ viewMsg('불러오지 못했습니다.'); return; }
   if (!p) { viewMsg('삭제되었거나 볼 수 없는 게시물입니다.'); return; }
+  viewPostId = p.id;
   const show = list => openShared({ i: list, n: p.note || '', h: p.title, adult: p.adult });
   if (p.locked) {
     viewLocked(p.body, plain => {
