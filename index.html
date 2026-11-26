@@ -87,6 +87,18 @@
   .sbtn.on{color:var(--text)}
   .sbtn.spin svg{animation:spin .6s linear}
   @keyframes spin{to{transform:rotate(360deg)}}
+  .badge.soft{background:var(--accent-soft);color:var(--ok)}
+  .sub{margin-top:10px;padding-left:10px;border-left:2px solid var(--line)}
+  .sub-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .sub-name{font-size:13px;font-weight:600;word-break:break-word}
+  .sub .body{margin-top:2px}
+  .selbar{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .selbar .selcount{flex:1;color:var(--sub);font-size:13px}
+  .cbox{width:20px;height:20px;border-radius:6px;border:1.5px solid var(--line);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--on-accent);margin-top:1px}
+  .cbox svg{width:14px;height:14px;visibility:hidden}
+  .cbox.on{background:var(--accent);border-color:var(--accent)}
+  .cbox.on svg{visibility:visible}
+  #list.selecting .item{cursor:pointer}
   .more{display:block;width:100%;margin-top:8px}
   .foot{text-align:center;margin-top:18px;font-size:12px}
   .foot .link{font-size:12px;opacity:.7}
@@ -177,6 +189,12 @@
       <div class="row" style="gap:10px"><button class="ib sbtn" id="qBtn" title="검색" aria-label="검색"></button><button class="ib sbtn" id="shareList" title="목록을 링크로 공유" aria-label="목록을 링크로 공유"></button></div>
     </div>
     <input type="search" id="q" class="search hidden" placeholder="검색">
+    <div class="selbar hidden" id="selBar">
+      <button class="link" id="selAll">전체 선택</button>
+      <span class="selcount" id="selCount"></span>
+      <button class="btn sm" id="selCancel">취소</button>
+      <button class="btn sm main" id="selShare">공유</button>
+    </div>
     <div id="list"></div>
   </div>
 
@@ -249,6 +267,7 @@
       <button class="btn soft hidden" id="lShare">공유</button>
       <button class="btn main" id="lCopy">링크 복사</button>
     </div>
+    <input type="text" id="lSeries" class="hidden" placeholder="시리즈 제목" style="margin-top:12px">
     <div class="post-row hidden" id="postRow">
       <label class="chk"><input type="checkbox" id="lAdult">성인</label>
       <button class="btn sm soft" id="postBtn">게시판에 게시</button>
@@ -544,13 +563,17 @@ function render(){
   if (!items.length) { $('#list').innerHTML = '<div class="empty">등록된 항목이 없습니다.</div>'; return; }
   if (!shown.length) { $('#list').innerHTML = '<div class="empty">검색 결과가 없습니다.</div>'; return; }
 
+  $('#list').classList.toggle('selecting', selMode);
+  $('#selBar').classList.toggle('hidden', !selMode);
+  $('#selCount').textContent = selected.size + '개 선택';
   $('#list').innerHTML = shown.map(i => `
     <div class="item${i.id === editingId ? ' cur' : ''}" data-id="${i.id}">
       <div class="item-top">
+        ${selMode ? `<span class="cbox${selected.has(i.id) ? ' on' : ''}">${ICON.done}</span>` : ''}
         <div class="info">
           <div class="name">${esc(i.t)}</div>
         </div>
-        <div class="acts">
+        <div class="acts${selMode ? ' hidden' : ''}">
           <button class="ib copy" data-act="copy" title="복사">${ICON.copy}</button>
           <button class="ib" data-act="share" title="공유">${ICON.share}</button>
           <button class="ib" data-act="edit" title="수정">${ICON.edit}</button>
@@ -563,9 +586,12 @@ function render(){
   document.querySelectorAll('#list .body').forEach(b => { if (b.scrollHeight > b.clientHeight + 2) b.classList.add('long'); });
 }
 
+let selMode = false;
+const selected = new Set();
 $('#list').onclick = e => {
   const row = e.target.closest('.item'); if (!row) return;
   const it = items.find(i => i.id === row.dataset.id); if (!it) return;
+  if (selMode) { selected.has(it.id) ? selected.delete(it.id) : selected.add(it.id); render(); return; }
   const body = e.target.closest('.body');
   if (body) { if (body.classList.contains('long')) body.classList.toggle('open'); return; }
   const btn = e.target.closest('[data-act]'); if (!btn) return;
@@ -637,10 +663,12 @@ async function buildLink(){
   linkUrl = url; $('#lUrl').value = url;
   $('#lCopy').disabled = $('#lShare').disabled = false;
 }
-let boardItem = null;
+let boardItems = null;
 async function openLink(payload, title){
-  boardItem = (payload.i && payload.i.length === 1 && !payload.s) ? payload.i[0] : null;
-  $('#postRow').classList.toggle('hidden', !boardItem);
+  boardItems = (payload.i && payload.i.length && !payload.s) ? payload.i : null;
+  $('#postRow').classList.toggle('hidden', !boardItems);
+  $('#lSeries').classList.toggle('hidden', !boardItems || boardItems.length < 2);
+  $('#lSeries').value = '';
   $('#lAdult').checked = false;
   try { linkPacked = await pack(payload); }
   catch(e){ toast('링크를 만들지 못했습니다.'); return; }
@@ -661,10 +689,24 @@ $('#linkBox').addEventListener('click', e => { if (e.target.id === 'linkBox') cl
 
 const pick = ({ t, g, c }) => ({ t, g, c });
 function share(it){ openLink({ i: [pick(it)] }, it.t); }
+function setSelMode(on){ selMode = on; selected.clear(); $('#shareList').classList.toggle('on', on); render(); }
 $('#shareList').onclick = () => {
-  const list = visibleItems();
-  if (!list.length) { toast('공유할 OOC가 없습니다.'); return; }
-  openLink({ i: list.map(pick), s: snips }, filterTag ? `${filterTag} OOC ${list.length}개` : `OOC ${list.length}개`);
+  if (selMode) { setSelMode(false); return; }
+  if (!items.length) { toast('공유할 OOC가 없습니다.'); return; }
+  setSelMode(true);
+};
+$('#selCancel').onclick = () => setSelMode(false);
+$('#selAll').onclick = () => {
+  const vis = visibleItems();
+  const all = vis.every(i => selected.has(i.id));
+  vis.slice().reverse().forEach(i => all ? selected.delete(i.id) : selected.add(i.id));
+  render();
+};
+$('#selShare').onclick = () => {
+  const list = [...selected].map(id => items.find(i => i.id === id)).filter(Boolean);
+  if (!list.length) { toast('선택된 OOC가 없습니다.'); return; }
+  setSelMode(false);
+  openLink({ i: list.map(pick) }, list.length === 1 ? list[0].t : `OOC ${list.length}개`);
 };
 $('#shareNow').onclick = () => {
   const n = normalize({ t: $('#fTitle').value, c: ta.value });
@@ -786,7 +828,8 @@ async function tryUnlock(){
     const plain = await unlock(lockedData, pw);
     if (lockPost) {
       const p = lockPost; lockPost = null;
-      p.open = JSON.parse(plain).c;
+      const d = JSON.parse(plain);
+      p.open = Array.isArray(d.i) ? d.i : [{ t: p.title, c: d.c }];
       $('#lockBox').classList.remove('show'); lockedData = '';
       renderBoard();
     } else {
@@ -857,7 +900,7 @@ async function loadBoard(more){
     const q = $('#bq').value.trim();
     const quoted = '"*' + q.replace(/[\\"]/g, m => '\\' + m) + '*"';
     const filter = q ? '&or=' + encodeURIComponent(`(title.ilike.${quoted},and(locked.is.false,body.ilike.${quoted}))`) : '';
-    const rows = await sbRows(`/rest/v1/posts?select=id,created_at,title,body,adult,locked${admin ? ',reports' : ''}&order=id.desc&limit=${PAGE}${before}${filter}`);
+    const rows = await sbRows(`/rest/v1/posts?select=id,created_at,title,body,adult,locked,count${admin ? ',reports' : ''}&order=id.desc&limit=${PAGE}${before}${filter}`);
     if (seq !== boardSeq) return;
     const opened = Object.fromEntries(posts.filter(p => p.open != null).map(p => [p.id, p.open]));
     rows.forEach(r => { if (opened[r.id] != null) r.open = opened[r.id]; });
@@ -871,29 +914,44 @@ async function loadBoard(more){
   } finally { if (seq === boardSeq) boardBusy = false; }
 }
 
+function postList(p){
+  if (p.locked) return p.open || null;
+  if ((p.count || 1) > 1) {
+    try { const d = JSON.parse(p.body); if (Array.isArray(d.i)) return d.i.map(x => ({ t: String(x.t || ''), c: String(x.c || '') })); } catch(e){}
+    return [{ t: p.title, c: p.body }];
+  }
+  return [{ t: p.title, c: p.body }];
+}
 function renderBoard(){
   $('#boardMore').classList.toggle('hidden', boardEnd || !posts.length);
   if (!posts.length) { $('#board').innerHTML = `<div class="empty">${$('#bq').value.trim() ? '검색 결과가 없습니다.' : '등록된 항목이 없습니다.'}</div>`; return; }
   $('#board').innerHTML = posts.map(p => {
-    const text = p.locked ? p.open : p.body;
-    const shut = text == null;
+    const list = postList(p);
+    const shut = !list;
+    const multi = (p.count || 1) > 1;
     return `
     <div class="item" data-pid="${p.id}">
       <div class="item-top">
         <div class="info">
-          <div class="name">${p.adult ? '<span class="badge">성인</span>' : ''}${esc(p.title)}</div>
+          <div class="name">${p.adult ? '<span class="badge">성인</span>' : ''}${multi ? `<span class="badge soft">시리즈 ${p.count}</span>` : ''}${esc(p.title)}</div>
           <div class="meta">${p.locked ? ICON.lock : ''}${when(p.created_at)}${admin && p.reports ? ` · <span style="color:var(--warn)">신고 ${p.reports}${p.reports >= 3 ? ' · 숨김' : ''}</span>` : ''}</div>
         </div>
         <div class="acts">
           ${shut
             ? `<button class="ib copy" data-act="open" title="열기">${ICON.lock}</button>`
-            : `<button class="ib copy" data-act="copy" title="복사">${ICON.copy}</button>
-               <button class="ib" data-act="keep" title="내 OOC로 저장">${ICON.save}</button>`}
+            : `${multi ? '' : `<button class="ib copy" data-act="copy" data-k="0" title="복사">${ICON.copy}</button>`}
+               <button class="ib" data-act="keep" title="${multi ? '전부 내 OOC로 저장' : '내 OOC로 저장'}">${ICON.save}</button>`}
           ${admin && p.reports ? `<button class="ib" data-act="restore" title="신고 초기화">${ICON.done}</button>` : ''}
           ${mine[p.id] || admin ? `<button class="ib del" data-act="del" title="삭제">${ICON.del}</button>` : `<button class="ib del" data-act="report" title="신고"${reported[p.id] ? ' disabled style="opacity:.35"' : ''}>${ICON.flag}</button>`}
         </div>
       </div>
-      ${shut ? '' : `<div class="body">${esc(text)}</div>`}
+      ${shut ? '' : multi
+        ? list.map((x, k) => `
+      <div class="sub">
+        <div class="sub-top"><span class="sub-name">${esc(x.t)}</span><button class="ib copy" data-act="copy" data-k="${k}" title="복사">${ICON.copy}</button></div>
+        <div class="body">${esc(x.c)}</div>
+      </div>`).join('')
+        : `<div class="body">${esc(list[0].c)}</div>`}
     </div>`;
   }).join('');
   document.querySelectorAll('#board .body').forEach(b => { if (b.scrollHeight > b.clientHeight + 2) b.classList.add('long'); });
@@ -905,16 +963,17 @@ $('#board').onclick = async e => {
   const body = e.target.closest('.body');
   if (body) { if (body.classList.contains('long')) body.classList.toggle('open'); return; }
   const btn = e.target.closest('[data-act]'); if (!btn) return;
-  const act = btn.dataset.act, text = p.locked ? p.open : p.body;
+  const act = btn.dataset.act, list = postList(p) || [];
   if (act === 'open') {
     lockPost = p; lockedData = p.body; $('#uPw').value = '';
     $('#lockBox').classList.add('show');
     setTimeout(() => $('#uPw').focus(), 50);
   } else if (act === 'copy') {
-    copyText(text);
+    const x = list[+btn.dataset.k || 0]; if (!x) return;
+    copyText(x.c);
     btn.innerHTML = ICON.done; setTimeout(() => { btn.innerHTML = ICON.copy; }, 1200);
   } else if (act === 'keep') {
-    const n = merge([{ t: p.title, c: text }]); saveItems(); render();
+    const n = merge(list.length > 1 ? list : [{ t: p.title, c: list[0] && list[0].c }]); saveItems(); render();
     toast(n ? '내 OOC에 저장되었습니다.' : '이미 저장되어 있습니다.');
   } else if (act === 'report') {
     if (reported[p.id]) return;
@@ -979,21 +1038,25 @@ setAdmin(admin);
 $('#boardMore').onclick = () => loadBoard(true);
 
 $('#postBtn').onclick = async () => {
-  if (!boardItem) return;
+  if (!boardItems) return;
   const pw = $('#lPw').value, adult = $('#lAdult').checked;
   if (adult && !pw) { toast('성인 OOC는 비밀번호를 설정해야 합니다.'); $('#lPw').focus(); return; }
-  const title = String(boardItem.t || '').trim().slice(0, 60) || '제목 없음';
-  const c = String(boardItem.c || '');
-  if (!c.trim()) return;
-  if (c.length > 4000) { toast('4,000자까지만 게시할 수 있습니다.'); return; }
+  const list = boardItems.map(({ t, c }) => ({ t: String(t || '').trim().slice(0, 60) || '제목 없음', c: String(c || '') })).filter(x => x.c.trim());
+  const n = list.length;
+  if (!n) return;
+  if (n > 30) { toast('시리즈는 30개까지만 게시할 수 있습니다.'); return; }
+  if (list.some(x => x.c.length > 4000)) { toast('OOC 하나당 4,000자까지만 게시할 수 있습니다.'); return; }
+  if (list.reduce((a, x) => a + x.c.length, 0) > 20000) { toast('시리즈 전체는 20,000자까지만 게시할 수 있습니다.'); return; }
+  const title = n > 1 ? ($('#lSeries').value.trim() || `${list[0].t} 외 ${n - 1}개`).slice(0, 60) : list[0].t;
+  const c = n > 1 ? JSON.stringify({ i: list }) : list[0].c;
   if (!confirm(adult ? '성인 OOC로 게시판에 게시하시겠습니까?' : '게시판에 게시하시겠습니까? 모든 사용자가 열람할 수 있습니다.')) return;
   $('#postBtn').disabled = true;
   try {
     const token = b64e(crypto.getRandomValues(new Uint8Array(18)));
-    const body = pw ? await lock(JSON.stringify({ c }), pw) : c;
+    const body = pw ? await lock(n > 1 ? c : JSON.stringify({ c }), pw) : c;
     const rows = await sb('/rest/v1/posts?select=id', {
       method: 'POST', headers: { Prefer: 'return=representation' },
-      body: JSON.stringify({ title, body, adult, locked: !!pw, del_hash: await sha256hex(token) })
+      body: JSON.stringify({ title, body, adult, locked: !!pw, count: n, del_hash: await sha256hex(token) })
     });
     if (rows && rows[0]) { mine[rows[0].id] = token; writeLS(MINE_KEY, mine); }
     closeLink(); toast('게시되었습니다.');
