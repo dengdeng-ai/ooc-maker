@@ -93,6 +93,12 @@
   .sub-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
   .sub-name{font-size:13px;font-weight:600;word-break:break-word}
   .sub .body{margin-top:2px}
+  #board .body{max-height:4.7em}
+  #board .body.open{max-height:none}
+  .sub-list{display:flex;align-items:center;gap:6px;margin-top:8px;padding:8px 10px;border-radius:8px;background:var(--bg);color:var(--sub);font-size:13px;cursor:pointer;-webkit-user-select:none;user-select:none}
+  .sub-list span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sub-list svg{width:15px;height:15px;flex-shrink:0;transition:transform .15s}
+  .sub-list.open svg{transform:rotate(180deg)}
   .selbar{display:flex;align-items:center;gap:8px;margin-bottom:6px}
   .selbar .selcount{flex:1;color:var(--sub);font-size:13px}
   .cbox{width:20px;height:20px;border-radius:6px;border:1.5px solid var(--line);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--on-accent);margin-top:1px}
@@ -317,6 +323,7 @@ const ICON = {
   search: svg('<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>'),
   reload: svg('<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>'),
   link: svg('<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>'),
+  down: svg('<path d="M6 9l6 6 6-6"/>'),
   save: svg('<path d="M12 4v11"/><path d="M7 10l5 5 5-5"/><path d="M5 20h14"/>'),
   moon: svg('<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>'),
   sun: svg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>')
@@ -845,7 +852,7 @@ async function tryUnlock(){
     if (lockPost) {
       const p = lockPost; lockPost = null;
       const d = JSON.parse(plain);
-      p.open = Array.isArray(d.i) ? d.i : [{ t: p.title, c: d.c }];
+      p.open = Array.isArray(d.i) ? d.i : [{ t: p.title, c: d.c }]; p.expanded = true;
       $('#lockBox').classList.remove('show'); lockedData = '';
       renderBoard();
     } else {
@@ -963,11 +970,11 @@ function renderBoard(){
         </div>
       </div>
       ${shut ? '' : multi
-        ? list.map((x, k) => `
+        ? `<div class="sub-list${p.expanded ? ' open' : ''}" data-act="fold"><span>${list.map(x => esc(x.t)).join(' · ')}</span>${ICON.down}</div>` + (!p.expanded ? '' : list.map((x, k) => `
       <div class="sub">
         <div class="sub-top"><span class="sub-name">${esc(x.t)}</span><button class="ib copy" data-act="copy" data-k="${k}" title="복사">${ICON.copy}</button></div>
         <div class="body">${esc(x.c)}</div>
-      </div>`).join('')
+      </div>`).join(''))
         : `<div class="body">${esc(list[0].c)}</div>`}
     </div>`;
   }).join('');
@@ -981,6 +988,7 @@ $('#board').onclick = async e => {
   if (body) { if (body.classList.contains('long')) body.classList.toggle('open'); return; }
   const btn = e.target.closest('[data-act]'); if (!btn) return;
   const act = btn.dataset.act, list = postList(p) || [];
+  if (act === 'fold') { p.expanded = !p.expanded; renderBoard(); return; }
   if (act === 'open') {
     lockPost = p; lockedData = p.body; $('#uPw').value = '';
     $('#lockBox').classList.add('show');
