@@ -229,7 +229,7 @@
 </div>
 
 <div class="wrap hidden" id="view">
-  <div class="head"><div class="title-row"><a class="back" id="homeLink" href="./" aria-label="뒤로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></a><h1>OOC 메이커</h1></div><button class="theme-btn" aria-label="다크 모드 전환"></button></div>
+  <div class="head"><div class="title-row"><a class="back" id="homeLink" href="./" aria-label="뒤로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></a><h1 id="viewH">OOC 메이커</h1></div><div class="row" style="gap:14px"><button class="ib sbtn hidden" id="postLink" title="링크 복사" aria-label="링크 복사"></button><button class="theme-btn" aria-label="다크 모드 전환"></button></div></div>
   <div id="viewBody"></div>
 </div>
 
@@ -336,6 +336,7 @@ function setTheme(dark){
 }
 $('#clearBtn').innerHTML = ICON.del;
 $('#qBtn').innerHTML = ICON.search;
+$('#postLink').innerHTML = ICON.link;
 $('#shareList').innerHTML = ICON.link;
 $('#bqBtn').innerHTML = ICON.search;
 $('#boardReload').innerHTML = ICON.reload;
@@ -746,7 +747,10 @@ function enterBoard(){
 }
 function enterView(){
   showPage('view');
-  $('#homeLink').href = location.pathname + location.search;
+  const fromPost = location.hash.startsWith('#post=');
+  $('#homeLink').href = fromPost ? '#board' : location.pathname + location.search;
+  $('#viewH').textContent = fromPost ? 'OOC 게시판' : 'OOC 메이커';
+  $('#postLink').classList.toggle('hidden', !fromPost);
   window.scrollTo(0, 0);
 }
 function leaveView(){
@@ -757,7 +761,7 @@ function viewMsg(msg){
   enterView();
   $('#viewBody').innerHTML = `<div class="card"><div class="empty" style="padding:8px 0">${esc(msg)}</div></div>`;
 }
-function viewLocked(data){
+function viewLocked(data, onPlain){
   enterView();
   $('#viewBody').innerHTML = `
     <div class="card">
@@ -768,7 +772,7 @@ function viewLocked(data){
   const go = async () => {
     const pw = $('#vPw').value; if (!pw) return;
     $('#vOpen').disabled = true;
-    try { openShared(await unpack(await unlock(data, pw))); }
+    try { const plain = await unlock(data, pw); onPlain ? onPlain(plain) : openShared(await unpack(plain)); }
     catch(e){ toast('비밀번호가 일치하지 않습니다.'); $('#vPw').select(); $('#vOpen').disabled = false; }
   };
   $('#vOpen').onclick = go;
@@ -787,18 +791,18 @@ function openShared(o){
     const it = list[0];
     html = `
     <div class="card">
-      <div class="name">${esc(it.t)}</div>
+      <div class="name">${o.adult ? '<span class="badge">성인</span>' : ''}${esc(it.t)}</div>
       ${note}
       <pre class="detail">${esc(it.c)}</pre>
       <div class="bar">
         <button class="btn soft" data-v="copy" data-i="0">복사</button>
-        <button class="btn main" data-v="save">내 목록에 저장</button>
+        <button class="btn main" data-v="save">내 OOC로 저장</button>
       </div>
     </div>`;
   } else {
     if (list.length) html += `
     <div class="card">
-      <div class="card-head" style="flex-direction:column;align-items:flex-start;gap:0"><div class="t">OOC<small>${list.length}개</small></div>${note}</div>
+      <div class="card-head" style="flex-direction:column;align-items:flex-start;gap:0"><div class="t">${o.h ? `${o.adult ? '<span class="badge">성인</span>' : ''}${esc(o.h)}` : 'OOC'}<small>${list.length}개</small></div>${note}</div>
       ${list.map((it, i) => `
       <div class="item">
         <div class="item-top">
@@ -813,7 +817,7 @@ function openShared(o){
       <div class="card-head"><div class="t">문구 버튼<small>${sn.length}개</small></div></div>
       <div class="snips">${sn.map(x => `<span class="snip" title="${esc(x.x)}">${esc(x.l)}</span>`).join('')}</div>
     </div>`;
-    html += `<div class="bar" style="margin-top:0"><button class="btn main" data-v="save">전부 내 목록에 저장</button></div>`;
+    html += `<div class="bar" style="margin-top:0"><button class="btn main" data-v="save">전부 내 OOC로 저장</button></div>`;
   }
   $('#viewBody').innerHTML = html;
   document.querySelectorAll('#viewBody .body').forEach(b => { if (b.scrollHeight > b.clientHeight + 2) b.classList.add('long'); });
@@ -955,7 +959,7 @@ function renderBoard(){
     return `
     <div class="item" data-pid="${p.id}">
       <div class="item-top">
-        <div class="info">
+        <div class="info" data-act="go" style="cursor:pointer">
           <div class="name">${p.adult ? '<span class="badge">성인</span>' : ''}${multi ? `<span class="badge soft">시리즈 ${p.count}</span>` : ''}${esc(p.title)}</div>
           ${p.note ? `<div class="note">${esc(p.note)}</div>` : ''}
           <div class="meta">${p.locked ? ICON.lock : ''}${when(p.created_at)}${admin && p.reports ? ` · <span style="color:var(--warn)">신고 ${p.reports}${p.reports >= 3 ? ' · 숨김' : ''}</span>` : ''}</div>
@@ -989,6 +993,7 @@ $('#board').onclick = async e => {
   const btn = e.target.closest('[data-act]'); if (!btn) return;
   const act = btn.dataset.act, list = postList(p) || [];
   if (act === 'fold') { p.expanded = !p.expanded; renderBoard(); return; }
+  if (act === 'go') { location.hash = '#post=' + p.id; return; }
   if (act === 'open') {
     lockPost = p; lockedData = p.body; $('#uPw').value = '';
     $('#lockBox').classList.add('show');
@@ -1091,12 +1096,30 @@ $('#postBtn').onclick = async () => {
   $('#postBtn').disabled = false;
 };
 
+async function openPost(id){
+  viewMsg('불러오는 중입니다.');
+  let p;
+  try {
+    const rows = await sb(`/rest/v1/posts?id=eq.${encodeURIComponent(id)}&select=id,created_at,title,body,adult,locked,count,note`);
+    p = rows && rows[0];
+  } catch(e){ viewMsg('불러오지 못했습니다.'); return; }
+  if (!p) { viewMsg('삭제되었거나 볼 수 없는 게시물입니다.'); return; }
+  const show = list => openShared({ i: list, n: p.note || '', h: p.title, adult: p.adult });
+  if (p.locked) {
+    viewLocked(p.body, plain => {
+      const d = JSON.parse(plain);
+      show(Array.isArray(d.i) ? d.i : [{ t: p.title, c: d.c }]);
+    });
+  } else show(postList(p));
+}
+$('#postLink').onclick = () => copyText(location.href, '링크가 복사되었습니다.');
 async function checkHash(){
   const h = location.hash;
   try {
     if (h.startsWith('#e=')) viewLocked(h.slice(3));
     else if (h.startsWith('#p=')) openShared(await unpack(h.slice(3)));
     else if (h.startsWith('#s=')) openShared(legacyDec(h.slice(3)));
+    else if (h.startsWith('#post=')) openPost(h.slice(6));
     else if (h === '#board') enterBoard();
     else if (h === '#admin') { enterBoard(); openAdmin(); }
     else leaveView();
