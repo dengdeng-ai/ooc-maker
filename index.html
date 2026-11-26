@@ -102,6 +102,14 @@
   #eItems textarea{min-height:120px;margin-top:6px}
   #eItems .sub{margin-top:12px}
   #eItems .sub input{margin-top:0}
+  .fold-t{border:0;background:none;padding:0;font:inherit;font-weight:600;color:var(--text);cursor:pointer;display:flex;align-items:center;gap:0}
+  .fold-ic{display:flex;color:var(--sub);margin-left:6px}
+  .fold-ic svg{width:16px;height:16px;transition:transform .15s}
+  #savedCard.folded .fold-ic svg{transform:rotate(-90deg)}
+  #savedCard.folded #savedBody, #savedCard.folded #q, #savedCard.folded #selBar, #savedCard.folded #qBtn, #savedCard.folded #shareList{display:none!important}
+  #savedCard.folded .card-head{margin-bottom:0}
+  #list .body{max-height:3.2em}
+  #list .body.open{max-height:none}
   .badge.soft{background:var(--accent-soft);color:var(--ok)}
   .sub{margin-top:10px;padding-left:10px;border-left:2px solid var(--line)}
   .sub-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -205,9 +213,9 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card" id="savedCard">
     <div class="card-head">
-      <div class="t">저장한 OOC<small id="count">0개</small></div>
+      <button class="t fold-t" id="savedFold">저장한 OOC<small id="count">0개</small><span class="fold-ic" id="savedFoldIc"></span></button>
       <div class="row" style="gap:10px"><button class="ib sbtn" id="qBtn" title="검색" aria-label="검색"></button><button class="ib sbtn" id="shareList" title="목록을 링크로 공유" aria-label="목록을 링크로 공유"></button></div>
     </div>
     <input type="search" id="q" class="search hidden" placeholder="검색">
@@ -217,8 +225,10 @@
       <button class="btn sm" id="selCancel">취소</button>
       <button class="btn sm main" id="selShare">게시하기</button>
     </div>
-    <div id="list"></div>
-    <button class="btn sm more hidden" id="listMore">더 보기</button>
+    <div id="savedBody">
+      <div id="list"></div>
+      <button class="btn sm more hidden" id="listMore">더 보기</button>
+    </div>
   </div>
 
   <div class="card">
@@ -360,6 +370,13 @@ function setTheme(dark){
 }
 $('#clearBtn').innerHTML = ICON.del;
 $('#qBtn').innerHTML = ICON.search;
+$('#savedFoldIc').innerHTML = ICON.down;
+if (readLS('ooc.savedFolded.v1')) $('#savedCard').classList.add('folded');
+$('#savedFold').onclick = () => {
+  const f = $('#savedCard').classList.toggle('folded');
+  writeLS('ooc.savedFolded.v1', f);
+  if (!f) render();
+};
 $('#postLink').innerHTML = ICON.link;
 $('#shareList').innerHTML = ICON.link;
 $('#bqBtn').innerHTML = ICON.search;
@@ -587,7 +604,7 @@ $('#saveBtn').onclick = () => {
   saveItems(); setEditing(null); toast('저장되었습니다.');
 };
 
-const LIST_PAGE = 10;
+const LIST_PAGE = 5;
 let listLimit = LIST_PAGE;
 function visibleItems(){
   const q = $('#q').value.trim().toLowerCase();
