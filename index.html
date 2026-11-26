@@ -102,9 +102,8 @@
   .selbar{display:flex;align-items:center;gap:8px;margin-bottom:6px}
   .selbar .selcount{flex:1;color:var(--sub);font-size:13px}
   .cbox{width:20px;height:20px;border-radius:6px;border:1.5px solid var(--line);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--on-accent);margin-top:1px}
-  .cbox svg{width:14px;height:14px;visibility:hidden}
+  .cbox{font-size:12px;font-weight:700;line-height:1}
   .cbox.on{background:var(--accent);border-color:var(--accent)}
-  .cbox.on svg{visibility:visible}
   #list.selecting .item{cursor:pointer}
   .more{display:block;width:100%;margin-top:8px}
   .foot{text-align:center;margin-top:18px;font-size:12px}
@@ -582,10 +581,11 @@ function render(){
   $('#list').classList.toggle('selecting', selMode);
   $('#selBar').classList.toggle('hidden', !selMode);
   $('#selCount').textContent = selected.size + '개 선택';
+  const order = [...selected];
   $('#list').innerHTML = shown.map(i => `
     <div class="item${i.id === editingId ? ' cur' : ''}" data-id="${i.id}">
       <div class="item-top">
-        ${selMode ? `<span class="cbox${selected.has(i.id) ? ' on' : ''}">${ICON.done}</span>` : ''}
+        ${selMode ? `<span class="cbox${selected.has(i.id) ? ' on' : ''}">${selected.has(i.id) ? order.indexOf(i.id) + 1 : ''}</span>` : ''}
         <div class="info">
           <div class="name">${esc(i.t)}</div>
         </div>
