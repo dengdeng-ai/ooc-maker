@@ -85,6 +85,8 @@
   .post-row .btn{margin-left:auto}
   .sbtn{margin:-6px -4px}
   .sbtn.on{color:var(--text)}
+  .sbtn.spin svg{animation:spin .6s linear}
+  @keyframes spin{to{transform:rotate(360deg)}}
   .more{display:block;width:100%;margin-top:8px}
   .foot{text-align:center;margin-top:18px;font-size:12px}
   .foot .link{font-size:12px;opacity:.7}
@@ -172,7 +174,7 @@
   <div class="card">
     <div class="card-head">
       <div class="t">저장한 OOC<small id="count">0개</small></div>
-      <div class="row" style="gap:10px"><button class="ib sbtn" id="qBtn" title="검색" aria-label="검색"></button><button class="link" id="shareList">링크로 공유</button></div>
+      <div class="row" style="gap:10px"><button class="ib sbtn" id="qBtn" title="검색" aria-label="검색"></button><button class="ib sbtn" id="shareList" title="목록을 링크로 공유" aria-label="목록을 링크로 공유"></button></div>
     </div>
     <input type="search" id="q" class="search hidden" placeholder="검색">
     <div id="list"></div>
@@ -192,7 +194,7 @@
   <div class="card">
     <div class="card-head">
       <div class="t"></div>
-      <div class="row" style="gap:10px"><button class="link hidden" id="adminOut">로그아웃</button><button class="ib sbtn" id="bqBtn" title="검색" aria-label="검색"></button><button class="link" id="boardReload">새로고침</button></div>
+      <div class="row" style="gap:10px"><button class="link hidden" id="adminOut">로그아웃</button><button class="ib sbtn" id="bqBtn" title="검색" aria-label="검색"></button><button class="ib sbtn" id="boardReload" title="새로고침" aria-label="새로고침"></button></div>
     </div>
     <input type="search" id="bq" class="search hidden" placeholder="검색">
     <div id="board"></div>
@@ -292,6 +294,8 @@ const ICON = {
   flag: svg('<path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/>'),
   swap: svg('<path d="M7 7h12"/><path d="M15 3l4 4-4 4"/><path d="M17 17H5"/><path d="M9 13l-4 4 4 4"/>'),
   search: svg('<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>'),
+  reload: svg('<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>'),
+  link: svg('<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>'),
   save: svg('<path d="M12 4v11"/><path d="M7 10l5 5 5-5"/><path d="M5 20h14"/>'),
   moon: svg('<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>'),
   sun: svg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>')
@@ -304,7 +308,9 @@ function setTheme(dark){
 }
 $('#clearBtn').innerHTML = ICON.del;
 $('#qBtn').innerHTML = ICON.search;
+$('#shareList').innerHTML = ICON.link;
 $('#bqBtn').innerHTML = ICON.search;
+$('#boardReload').innerHTML = ICON.reload;
 $('#swapBtn').innerHTML = ICON.swap;
 document.querySelectorAll('.theme-btn').forEach(b => { b.innerHTML = document.documentElement.classList.contains('dark') ? ICON.sun : ICON.moon; b.onclick = () => setTheme(!document.documentElement.classList.contains('dark')); });
 
@@ -936,7 +942,10 @@ $('#board').onclick = async e => {
     } catch(err){ toast('삭제하지 못했습니다.'); }
   }
 };
-$('#boardReload').onclick = () => loadBoard(false);
+$('#boardReload').onclick = () => {
+  const b = $('#boardReload'); b.classList.remove('spin'); void b.offsetWidth; b.classList.add('spin');
+  loadBoard(false);
+};
 let bqTimer;
 $('#bq').oninput = () => { clearTimeout(bqTimer); bqTimer = setTimeout(() => loadBoard(false), 350); };
 $('#bqBtn').onclick = () => toggleSearch($('#bqBtn'), $('#bq'), () => loadBoard(false));
