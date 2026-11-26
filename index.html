@@ -97,7 +97,7 @@
   .post-row{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:12px;border-top:1px solid var(--line)}
   .chk{display:flex;align-items:center;gap:6px;color:var(--text);cursor:pointer;-webkit-user-select:none;user-select:none}
   .chk input{width:17px;height:17px;margin:0;accent-color:var(--accent)}
-  .post-row .btn{margin-left:auto}
+  .post-row .btn{flex:1}
   .sbtn{margin:-6px -4px}
   .sbtn.on{color:var(--text)}
   .sbtn.spin svg{animation:spin .6s linear}
@@ -265,14 +265,14 @@
   <div class="card hidden" id="pubPanel">
     <input type="text" id="lSeries" class="hidden" maxlength="60" placeholder="세트 제목">
     <input type="text" id="lNote" maxlength="100" placeholder="한 줄 설명 (선택)">
-    <input type="text" id="lPw" placeholder="비밀번호 (선택)" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <label class="chk" style="margin:12px 0 10px"><input type="checkbox" id="lAdult">성인</label>
+    <input type="text" id="lPw" placeholder="비밀번호 (선택)" autocomplete="off" autocapitalize="off" spellcheck="false" style="margin-top:0">
     <div class="bar">
       <button class="btn soft hidden" id="lShare">공유</button>
       <button class="btn main" id="lCopy">링크 복사</button>
     </div>
     <div class="post-row hidden" id="postRow">
-      <label class="chk"><input type="checkbox" id="lAdult">성인</label>
-      <button class="btn sm soft" id="postBtn">공유 게시판에 올리기</button>
+      <button class="btn soft" id="postBtn" style="margin-left:0">공유 게시판에 올리기</button>
     </div>
   </div>
 </div>
@@ -729,7 +729,8 @@ async function buildLink(){
   catch(e){ if (seq === linkSeq) toast('링크를 만들지 못했습니다.'); return; }
   if (seq !== linkSeq) return;
   linkUrl = url;
-  if (publishing) history.replaceState(null, '', url);
+  const blocked = $('#lAdult').checked && !pw;
+  if (publishing) history.replaceState(null, '', blocked ? location.pathname + location.search : url);
   $('#lCopy').disabled = $('#lShare').disabled = false;
 }
 let boardItems = null, linkPayload = null;
@@ -739,7 +740,7 @@ async function openLink(payload, title){
   $('#postRow').classList.toggle('hidden', !boardItems);
   $('#lSeries').classList.toggle('hidden', !boardItems || boardItems.length < 2);
   $('#lSeries').value = ''; $('#lNote').value = ''; $('#lPw').value = '';
-  $('#lAdult').checked = false;
+  $('#lAdult').checked = false; $('#lPw').placeholder = '비밀번호 (선택)';
   linkPayload = payload; linkTitle = title;
   try { linkPacked = await pack(payload); }
   catch(e){ toast('링크를 만들지 못했습니다.'); return; }
@@ -766,8 +767,16 @@ $('#lNote').addEventListener('input', () => {
 $('#lSeries').addEventListener('input', () => { clearTimeout(noteTimer); noteTimer = setTimeout(previewPublish, 250); });
 let pwTimer;
 $('#lPw').addEventListener('input', () => { $('#lCopy').disabled = $('#lShare').disabled = true; clearTimeout(pwTimer); pwTimer = setTimeout(buildLink, 250); });
-$('#lCopy').onclick = () => { if (!$('#lCopy').disabled) copyText(linkUrl, '링크가 복사되었습니다.'); };
-$('#lShare').onclick = async () => { try { await navigator.share({ title: linkTitle, url: linkUrl }); } catch(e){} };
+function adultBlocked(){
+  if ($('#lAdult').checked && !$('#lPw').value) { toast('성인 OOC는 비밀번호를 설정해야 합니다.'); $('#lPw').focus(); return true; }
+  return false;
+}
+$('#lCopy').onclick = () => { if ($('#lCopy').disabled || adultBlocked()) return; copyText(linkUrl, '링크가 복사되었습니다.'); };
+$('#lShare').onclick = async () => { if (adultBlocked()) return; try { await navigator.share({ title: linkTitle, url: linkUrl }); } catch(e){} };
+$('#lAdult').addEventListener('change', () => {
+  $('#lPw').placeholder = $('#lAdult').checked ? '비밀번호 (필수)' : '비밀번호 (선택)';
+  buildLink();
+});
 
 const pick = ({ t, g, c }) => ({ t, g, c });
 function share(it){ openLink({ i: [pick(it)] }, it.t); }
