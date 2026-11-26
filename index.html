@@ -997,10 +997,6 @@ async function sha256hex(str){
   const d = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str)));
   return [...d].map(x => x.toString(16).padStart(2, '0')).join('');
 }
-function when(iso){
-  const d = new Date(iso), pad = n => String(n).padStart(2, '0');
-  return `${d.getMonth() + 1}.${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
 
 async function loadBoard(more){
   if (more && boardBusy) return;
@@ -1012,7 +1008,7 @@ async function loadBoard(more){
     const q = $('#bq').value.trim();
     const quoted = '"*' + q.replace(/[\\"]/g, m => '\\' + m) + '*"';
     const filter = q ? '&or=' + encodeURIComponent(`(title.ilike.${quoted},and(locked.is.false,body.ilike.${quoted}))`) : '';
-    const rows = await sbRows(`/rest/v1/posts?select=id,created_at,title,body,adult,locked,count,note,downloads${admin ? ',reports' : ''}&order=${top ? 'downloads.desc,id.desc' : 'id.desc'}&limit=${PAGE}${before}${filter}`);
+    const rows = await sbRows(`/rest/v1/posts?select=id,title,body,adult,locked,count,note,downloads${admin ? ',reports' : ''}&order=${top ? 'downloads.desc,id.desc' : 'id.desc'}&limit=${PAGE}${before}${filter}`);
     if (seq !== boardSeq) return;
     const opened = Object.fromEntries(posts.filter(p => p.open != null).map(p => [p.id, p.open]));
     rows.forEach(r => { if (opened[r.id] != null) r.open = opened[r.id]; });
@@ -1047,7 +1043,10 @@ function renderBoard(){
         <div class="info" data-act="go" style="cursor:pointer">
           <div class="name">${p.adult ? '<span class="badge">성인</span>' : ''}${multi ? `<span class="badge soft">세트 ${p.count}</span>` : ''}${esc(p.title)}</div>
           ${p.note ? `<div class="note">${esc(p.note)}</div>` : ''}
-          <div class="meta">${p.locked ? ICON.lock : ''}${when(p.created_at)}${p.downloads ? ` · 다운로드 ${p.downloads}` : ''}${admin && p.reports ? ` · <span style="color:var(--warn)">신고 ${p.reports}${p.reports >= 3 ? ' · 숨김' : ''}</span>` : ''}</div>
+          ${(() => {
+            const parts = [p.downloads ? `다운로드 ${p.downloads}` : '', admin && p.reports ? `<span style="color:var(--warn)">신고 ${p.reports}${p.reports >= 3 ? ' · 숨김' : ''}</span>` : ''].filter(Boolean);
+            return p.locked || parts.length ? `<div class="meta">${p.locked ? ICON.lock : ''}${parts.join(' · ')}</div>` : '';
+          })()}
         </div>
         <div class="acts">
           ${shut
@@ -1244,7 +1243,7 @@ async function openPost(id){
   viewMsg('불러오는 중입니다.');
   let p;
   try {
-    const rows = await sb(`/rest/v1/posts?id=eq.${encodeURIComponent(id)}&select=id,created_at,title,body,adult,locked,count,note,downloads`);
+    const rows = await sb(`/rest/v1/posts?id=eq.${encodeURIComponent(id)}&select=id,title,body,adult,locked,count,note,downloads`);
     p = rows && rows[0];
   } catch(e){ viewMsg('불러오지 못했습니다.'); return; }
   if (!p) { viewMsg('삭제되었거나 볼 수 없는 게시물입니다.'); return; }
