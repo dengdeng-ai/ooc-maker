@@ -163,6 +163,10 @@
   #board{transition:opacity .2s}
   #board .body{max-height:4.7em}
   #board .body.open{max-height:none}
+  #board>.item{padding:16px 0}
+  #board>.item .name{font-size:15px}
+  #board>.item>.body{background:var(--bg);padding:8px 10px;border-radius:8px;box-sizing:content-box}
+  #board>.item>.body.long:not(.open)::after{background:linear-gradient(transparent,var(--bg) 75%);height:2.6em;border-radius:0 0 8px 8px}
   .sub-list{display:flex;align-items:center;gap:6px;margin-top:8px;padding:8px 10px;border-radius:8px;background:var(--bg);color:var(--sub);font-size:13px;cursor:pointer;-webkit-user-select:none;user-select:none}
   .sub-list span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .sub-list svg{width:15px;height:15px;flex-shrink:0;transition:transform .15s}
