@@ -535,7 +535,7 @@ function insertSnip(text){
     const block = false;
     const needNL = block && before && !/\n$/.test(before);
     const needSpaceBefore = !block && before && !/\s$/.test(before) && /^[A-Za-z가-힣{]/.test(text) && !/[\[(*"「『{]$/.test(before);
-    const trail = /[:#,]$/.test(text) && !/^\s/.test(ta.value.slice(e)) ? ' ' : '';
+    const trail = /[:#,.]$/.test(text) && !/^\s/.test(ta.value.slice(e)) ? ' ' : '';
     ins = (needNL ? '\n' : needSpaceBefore ? ' ' : '') + text + trail;
     caretS = caretE = s + ins.length;
   }
