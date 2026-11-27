@@ -908,12 +908,40 @@ async function unlock(s, pw){
 }
 
 let linkUrl = '', linkPacked = '', linkSeq = 0;
+const shortCache = {};
+async function makeShort(data){
+  if (shortCache[data]) return shortCache[data];
+  const abc = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  for (let t = 0; t < 2; t++) {
+    const id = [...crypto.getRandomValues(new Uint8Array(8))].map(x => abc[x % abc.length]).join('');
+    try {
+      await sb('/rest/v1/shares', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ id, data }) });
+      shortCache[data] = id; return id;
+    } catch(e){ if (!/^409/.test(e.message)) throw e; }
+  }
+  throw new Error('short');
+}
+async function openShort(id){
+  viewMsg('불러오는 중입니다.');
+  let row;
+  try { const rows = await sb(`/rest/v1/shares?id=eq.${encodeURIComponent(id)}&select=data`); row = rows && rows[0]; }
+  catch(e){ viewMsg('불러오지 못했습니다.'); return; }
+  if (!row) { viewMsg('올바르지 않은 링크입니다.'); return; }
+  const d = row.data;
+  if (d.startsWith('e:')) viewLocked(d.slice(2));
+  else openShared(await unpack(d.slice(2)));
+}
 async function buildLink(){
   const seq = ++linkSeq, pw = $('#lPw').value;
   $('#lCopy').disabled = $('#lShare').disabled = true;
-  let url;
-  try { url = location.origin + location.pathname + (pw ? '#e=' + await lock(linkPacked, pw) : '#p=' + linkPacked); }
+  let url, data;
+  try {
+    data = pw ? 'e:' + await lock(linkPacked, pw) : 'p:' + linkPacked;
+    url = location.origin + location.pathname + (pw ? '#e=' : '#p=') + data.slice(2);
+  }
   catch(e){ if (seq === linkSeq) toast('링크를 만들지 못했습니다.'); return; }
+  if (seq !== linkSeq) return;
+  try { url = location.origin + location.pathname + '#l=' + await makeShort(data); } catch(e){}
   if (seq !== linkSeq) return;
   linkUrl = url;
   const blocked = $('#lAdult').checked && !pw;
@@ -935,6 +963,7 @@ async function openLink(payload, title){
   linkUrl = location.origin + location.pathname + '#p=' + linkPacked;
   publishing = true;
   location.hash = '#p=' + linkPacked;
+  buildLink();
 }
 function previewPublish(){
   const note = $('#lNote').value.trim();
@@ -1489,7 +1518,8 @@ $('#postX').onclick = () => { if (viewPost) shareX(viewPost.title, viewPost.note
 async function checkHash(){
   const h = location.hash;
   try {
-    if (h.startsWith('#e=')) viewLocked(h.slice(3));
+    if (h.startsWith('#l=')) await openShort(h.slice(3));
+    else if (h.startsWith('#e=')) viewLocked(h.slice(3));
     else if (h.startsWith('#p=')) openShared(await unpack(h.slice(3)));
     else if (h.startsWith('#s=')) openShared(legacyDec(h.slice(3)));
     else if (h.startsWith('#post=')) openPost(h.slice(6));
