@@ -316,7 +316,7 @@
   <div class="head"><h1><a class="home" href="#">OOC 게시판</a></h1><div class="row" style="gap:14px"><a class="pill" href="#write">OOC 작성</a><button class="theme-btn" aria-label="다크 모드 전환"></button></div></div>
   <div class="card">
     <div class="card-head">
-      <div class="sortbar" id="bsort" style="margin:0"><button class="chip on" data-s="new">최신순</button><button class="chip" data-s="top">인기순</button></div>
+      <div class="sortbar" id="bsort" style="margin:0"><button class="chip on" data-s="new">최신순</button><button class="chip" data-s="top">인기순</button><button class="chip hidden" data-s="mine" id="bMine">내 게시물</button></div>
       <div class="row" style="gap:10px"><button class="link hidden" id="adminOut">로그아웃</button><button class="ib sbtn" id="bqBtn" title="검색" aria-label="검색"></button><button class="ib sbtn" id="boardReload" title="새로고침" aria-label="새로고침"></button></div>
     </div>
     <input type="search" id="bq" class="search hidden" placeholder="검색">
@@ -1415,7 +1415,12 @@ async function loadBoard(page){
     const top = boardSort === 'top';
     const q = $('#bq').value.trim();
     const quoted = '"*' + q.replace(/[\\"]/g, m => '\\' + m) + '*"';
-    const filter = q ? '&or=' + encodeURIComponent(`(title.ilike.${quoted},and(locked.is.false,body.ilike.${quoted}))`) : '';
+    let filter = q ? '&or=' + encodeURIComponent(`(title.ilike.${quoted},and(locked.is.false,body.ilike.${quoted}))`) : '';
+    if (boardSort === 'mine') {
+      const ids = Object.keys(mine).filter(k => /^\d+$/.test(k));
+      if (!ids.length) { posts = []; boardTotal = 0; renderBoard(); renderPager(); return; }
+      filter += '&id=in.(' + ids.join(',') + ')';
+    }
     const tok = await authToken();
     const res = await fetch(SB_URL + `/rest/v1/posts?select=id,title,body,adult,locked,count,note,downloads${admin ? ',reports' : ''}&order=${top ? 'downloads.desc,id.desc' : 'id.desc'}&limit=${PAGE}&offset=${(boardPageNo - 1) * PAGE}${filter}`, {
       cache: 'no-store', headers: { apikey: SB_KEY, Prefer: 'count=exact', ...(tok ? { Authorization: 'Bearer ' + tok } : {}) }
@@ -1469,6 +1474,8 @@ function postList(p){
   return [{ t: p.title, c: p.body }];
 }
 function renderBoard(){
+  const hasMine = Object.keys(mine).length > 0;
+  $('#bMine').classList.toggle('hidden', !hasMine && boardSort !== 'mine');
   if (!posts.length) { $('#board').innerHTML = `<div class="empty">${$('#bq').value.trim() ? '검색 결과가 없습니다.' : '등록된 항목이 없습니다.'}</div>`; return; }
   $('#board').innerHTML = posts.map(p => {
     const list = postList(p);
