@@ -82,10 +82,19 @@
   @media (max-width:480px){ #fBody{min-height:150px;height:190px} }
   .fields{margin-bottom:8px;display:flex;gap:8px}
   .fields #fTitle{flex:1.6}
-  .fields #fCat{flex:1}
+  .fields .catbox{flex:1;position:relative;min-width:0}
+  .catbox input{padding-right:30px}
+  .cat-tg{position:absolute;right:4px;top:50%;transform:translateY(-50%);border:0;background:none;color:var(--sub);padding:4px;display:flex;cursor:pointer}
+  .cat-tg svg{width:16px;height:16px;transition:transform .15s}
+  .catbox.open .cat-tg svg{transform:rotate(180deg)}
+  .cat-menu{position:absolute;left:0;right:0;top:calc(100% + 4px);background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 6px 20px rgba(20,25,30,.12);padding:4px;z-index:20;max-height:220px;overflow:auto}
+  .cat-menu button{display:block;width:100%;text-align:left;border:0;background:none;color:var(--text);font:inherit;padding:8px 10px;border-radius:7px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cat-menu button:hover,.cat-menu button.act{background:var(--accent-soft)}
   .cats{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px}
   .cats:empty{display:none}
   .cats .chip{font-size:12px;padding:3px 11px}
+  .cats .cat-edit{display:inline-flex;align-items:center;padding:3px 8px}
+  .cats .cat-edit svg{width:13px;height:13px}
 
   .snips{--g:6px;display:flex;flex-wrap:wrap;gap:var(--g);margin-bottom:8px}
   .snips .snip{flex:1 1 auto;text-align:center}
@@ -232,7 +241,7 @@
     </div>
     <div class="fields">
       <input type="text" id="fTitle" placeholder="제목 (선택)">
-      <input type="text" id="fCat" maxlength="20" placeholder="카테고리" autocomplete="off">
+      <div class="catbox"><input type="text" id="fCat" maxlength="20" placeholder="카테고리" autocomplete="off"><button type="button" class="cat-tg" id="catTg" tabindex="-1" aria-label="카테고리 목록"></button><div class="cat-menu hidden" id="catMenu"></div></div>
     </div>
     <div class="snips" id="snips"></div>
     <div class="snip-add hidden" id="snipAdd">
@@ -322,6 +331,18 @@
     <div class="name">직접 복사</div>
     <textarea id="cText" readonly style="margin-top:10px;min-height:140px"></textarea>
     <div class="bar"><button class="btn" id="cClose">닫기</button></div>
+  </div>
+</div>
+
+<div class="modal" id="catEditBox">
+  <div class="card">
+    <div class="name">카테고리 편집</div>
+    <input type="text" id="ceName" maxlength="20" placeholder="카테고리 이름" autocomplete="off" style="margin-top:10px">
+    <div class="bar">
+      <button class="btn" id="ceDel">삭제</button>
+      <button class="btn" id="ceClose">취소</button>
+      <button class="btn main" id="ceSave">저장</button>
+    </div>
   </div>
 </div>
 
@@ -427,6 +448,7 @@ function setTheme(dark){
 }
 $('#clearBtn').innerHTML = ICON.del;
 $('#qBtn').innerHTML = ICON.search;
+$('#catTg').innerHTML = ICON.down;
 $('#postX').innerHTML = ICON.x;
 $('#savedFoldIc').innerHTML = ICON.down;
 if (readLS('ooc.savedFolded.v1')) $('#savedCard').classList.add('folded');
@@ -708,7 +730,8 @@ function renderCats(){
   const hasNone = items.some(i => !i.cat);
   $('#cats').innerHTML = !cats.length ? '' : [`<button class="chip${!catFilter ? ' on' : ''}" data-cat="">전체</button>`]
     .concat(cats.map(c => `<button class="chip${catFilter === c ? ' on' : ''}" data-cat="${esc(c)}">${esc(c)}</button>`))
-    .concat(hasNone ? [`<button class="chip${catFilter === NOCAT ? ' on' : ''}" data-cat="${NOCAT}">미분류</button>`] : []).join('');
+    .concat(hasNone ? [`<button class="chip${catFilter === NOCAT ? ' on' : ''}" data-cat="${NOCAT}">미분류</button>`] : [])
+    .concat(catFilter && catFilter !== NOCAT ? [`<button class="chip cat-edit" data-catedit="1" title="카테고리 편집" aria-label="카테고리 편집">${ICON.edit}</button>`] : []).join('');
 }
 let listLimit = LIST_PAGE;
 function visibleItems(){
@@ -779,11 +802,66 @@ $('#list').onclick = e => {
 };
 $('#q').oninput = () => { listLimit = LIST_PAGE; render(); };
 $('#listMore').onclick = () => { listLimit += LIST_PAGE; render(); };
+function allCats(){ return [...new Set(items.map(i => i.cat).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko')); }
+let catBlurTimer;
+function showCatMenu(all){
+  clearTimeout(catBlurTimer);
+  const q = all ? '' : $('#fCat').value.trim().toLowerCase();
+  const list = allCats().filter(c => !q || c.toLowerCase().includes(q));
+  const menu = $('#catMenu');
+  if (!list.length) { hideCatMenu(); return; }
+  menu.innerHTML = list.map(c => `<button type="button" data-c="${esc(c)}">${esc(c)}</button>`).join('');
+  menu.classList.remove('hidden'); $('.catbox').classList.add('open');
+}
+function hideCatMenu(){ $('#catMenu').classList.add('hidden'); $('.catbox').classList.remove('open'); }
+$('#fCat').addEventListener('focus', () => showCatMenu(true));
+$('#fCat').addEventListener('input', () => showCatMenu(false));
+$('#fCat').addEventListener('blur', () => { catBlurTimer = setTimeout(hideCatMenu, 120); });
+$('#fCat').addEventListener('keydown', e => { if (e.key === 'Escape' || (e.key === 'Enter' && !e.isComposing)) { hideCatMenu(); if (e.key === 'Enter') e.preventDefault(); } });
+$('#catMenu').addEventListener('mousedown', e => e.preventDefault());
+$('#catMenu').onclick = e => {
+  const b = e.target.closest('[data-c]'); if (!b) return;
+  $('#fCat').value = b.dataset.c; $('#fCat').blur(); clearTimeout(catBlurTimer); hideCatMenu();
+};
+$('#catTg').addEventListener('mousedown', e => e.preventDefault());
+$('#catTg').onclick = () => {
+  if (!$('#catMenu').classList.contains('hidden')) { hideCatMenu(); return; }
+  if (!allCats().length) { $('#fCat').focus(); return; }
+  showCatMenu(true);
+};
 $('#cats').onclick = e => {
+  if (e.target.closest('[data-catedit]')) { openCatEdit(catFilter); return; }
   const b = e.target.closest('[data-cat]'); if (!b) return;
   const c = b.dataset.cat || null;
   catFilter = catFilter === c ? null : c; listLimit = LIST_PAGE; render();
 };
+let catEditing = null;
+function openCatEdit(c){
+  if (!c || c === NOCAT) return;
+  catEditing = c;
+  $('#ceName').value = c;
+  $('#catEditBox').classList.add('show');
+  setTimeout(() => $('#ceName').focus(), 50);
+}
+function closeCatEdit(){ $('#catEditBox').classList.remove('show'); catEditing = null; }
+$('#ceClose').onclick = closeCatEdit;
+$('#catEditBox').addEventListener('click', e => { if (e.target.id === 'catEditBox') closeCatEdit(); });
+$('#ceSave').onclick = () => {
+  const from = catEditing, to = $('#ceName').value.trim().slice(0, 20);
+  if (!from) return;
+  if (!to) { toast('카테고리 이름을 입력해 주세요.'); return; }
+  items.forEach(i => { if (i.cat === from) i.cat = to; });
+  if ($('#fCat').value.trim() === from) $('#fCat').value = to;
+  catFilter = to; saveItems(); closeCatEdit(); render(); toast('카테고리가 변경되었습니다.');
+};
+$('#ceDel').onclick = () => {
+  const from = catEditing; if (!from) return;
+  if (!confirm(`'${from}' 카테고리를 삭제하시겠습니까? 안에 있던 OOC는 미분류로 옮겨집니다.`)) return;
+  items.forEach(i => { if (i.cat === from) i.cat = ''; });
+  if ($('#fCat').value.trim() === from) $('#fCat').value = '';
+  catFilter = null; saveItems(); closeCatEdit(); render(); toast('카테고리가 삭제되었습니다.');
+};
+$('#ceName').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); $('#ceSave').click(); } });
 $('#listLess').onclick = () => { listLimit = LIST_PAGE; render(); $('#savedCard').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
 function toggleSearch(btn, input, onClear){
   const show = input.classList.toggle('hidden') === false;
