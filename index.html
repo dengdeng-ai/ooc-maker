@@ -194,7 +194,7 @@
 </head>
 <body>
 <div class="wrap hidden" id="main">
-  <div class="head"><div class="title-row"><a class="back" href="#" aria-label="뒤로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></a><h1>OOC 공방</h1></div><button class="theme-btn" id="themeBtn" aria-label="다크 모드 전환"></button></div>
+  <div class="head"><div class="title-row"><a class="back" href="#" aria-label="뒤로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></a><h1><a class="home" href="#">OOC 공방</a></h1></div><button class="theme-btn" id="themeBtn" aria-label="다크 모드 전환"></button></div>
 
   <div class="card" id="composer">
     <div class="card-head">
@@ -257,7 +257,7 @@
 </div>
 
 <div class="wrap" id="boardPage">
-  <div class="head"><h1>OOC 게시판</h1><div class="row" style="gap:14px"><a class="pill" href="#write">OOC 작성</a><button class="theme-btn" aria-label="다크 모드 전환"></button></div></div>
+  <div class="head"><h1><a class="home" href="#">OOC 게시판</a></h1><div class="row" style="gap:14px"><a class="pill" href="#write">OOC 작성</a><button class="theme-btn" aria-label="다크 모드 전환"></button></div></div>
   <div class="card">
     <div class="card-head">
       <div class="sortbar" id="bsort" style="margin:0"><button class="chip on" data-s="new">최신순</button><button class="chip" data-s="top">인기순</button></div>
@@ -271,7 +271,7 @@
 </div>
 
 <div class="wrap hidden" id="view">
-  <div class="head"><div class="title-row"><a class="back" id="homeLink" href="./" aria-label="뒤로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></a><h1 id="viewH">OOC 공방</h1></div><div class="row" style="gap:14px"><button class="ib sbtn hidden" id="postLink" title="링크 복사" aria-label="링크 복사"></button><button class="theme-btn" aria-label="다크 모드 전환"></button></div></div>
+  <div class="head"><div class="title-row"><a class="back" id="homeLink" href="./" aria-label="뒤로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></a><h1><a class="home" href="#" id="viewH">OOC 공방</a></h1></div><div class="row" style="gap:14px"><button class="ib sbtn hidden" id="postLink" title="링크 복사" aria-label="링크 복사"></button><button class="theme-btn" aria-label="다크 모드 전환"></button></div></div>
   <div id="viewBody"></div>
   <div class="card hidden" id="pubPanel">
     <input type="text" id="lSeries" class="hidden" maxlength="60" placeholder="세트 제목">
@@ -1337,7 +1337,9 @@ function goHome(){
 }
 document.addEventListener('click', e => {
   const a = e.target.closest('a[href="#"]'); if (!a) return;
-  e.preventDefault(); goHome();
+  e.preventDefault();
+  if (!location.hash && !$('#boardPage').classList.contains('hidden')) { window.scrollTo({ top: 0, behavior: 'smooth' }); loadBoard(false); return; }
+  goHome();
 });
 window.addEventListener('popstate', checkHash);
 
