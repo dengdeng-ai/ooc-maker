@@ -412,7 +412,7 @@ const DEFAULT_SNIPS = [
   { l: 'PC', x: 'PC' },
   { l: '새 에피소드', x: 'RP 중지, 새 에피소드 시작' },
   { l: 'AI로 답변', x: '현재 RP를 중지한다. AI로서 답변한다.' },
-  { l: '시간 경과', x: '시간이 흐른다.' }
+  { l: '시간 경과', x: '시간이 흐른 어느 날,' }
 ];
 const toSnip = v => {
   if (typeof v === 'string') return v.trim() ? { l: v.trim(), x: v } : null;
@@ -1616,6 +1616,8 @@ $('#file').onchange = async e => {
   if (Array.isArray(s)) {
     const old = snips.find(x => x.l === '새 에피소드' && x.x === '현재 RP를 중지한다. 새 에피소드를 시작한다.');
     if (old) { old.x = 'RP 중지, 새 에피소드 시작'; saveSnips(); }
+    const oldT = snips.find(x => x.l === '시간 경과' && x.x === '시간이 흐른다.');
+    if (oldT) { oldT.x = '시간이 흐른 어느 날,'; saveSnips(); }
   }
   if (Array.isArray(s) && !readLS('ooc.snips.hash.v1')) {
     if (!snips.some(x => x.l === '#')) {
