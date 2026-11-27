@@ -70,7 +70,12 @@
   html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
   textarea{resize:vertical;min-height:240px;line-height:1.6;display:block}
   @media (max-width:480px){ #fBody{min-height:150px;height:190px} }
-  .fields{margin-bottom:8px}
+  .fields{margin-bottom:8px;display:flex;gap:8px}
+  .fields #fTitle{flex:1.6}
+  .fields #fCat{flex:1}
+  .cats{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px}
+  .cats:empty{display:none}
+  .cats .chip{font-size:12px;padding:3px 11px}
 
   .snips{--g:6px;display:flex;flex-wrap:wrap;gap:var(--g);margin-bottom:8px}
   .snips .snip{flex:1 1 auto;text-align:center}
@@ -210,6 +215,8 @@
     </div>
     <div class="fields">
       <input type="text" id="fTitle" placeholder="제목 (선택)">
+      <input type="text" id="fCat" list="catList" maxlength="20" placeholder="카테고리">
+      <datalist id="catList"></datalist>
     </div>
     <div class="snips" id="snips"></div>
     <div class="snip-add hidden" id="snipAdd">
@@ -245,6 +252,7 @@
       <button class="btn sm main" id="selShare">게시</button>
     </div>
     <div id="savedBody">
+      <div class="cats" id="cats"></div>
       <div id="list"></div>
       <div class="more-row"><button class="btn sm hidden" id="listLess">접기</button><button class="btn sm hidden" id="listMore">더 보기</button></div>
     </div>
@@ -431,7 +439,8 @@ function normalize(o){
   const c = String(o.c ?? o.content ?? '').replace(/\s+$/, '');
   if (!c.trim()) return null;
   const t = String(o.t ?? o.title ?? '').trim() || c.trim().split('\n')[0].slice(0, 30);
-  return { id: uid(), t, g: [], c, at: Date.now() };
+  const cat = String(o.cat ?? '').trim().slice(0, 20);
+  return { id: uid(), t, g: [], c, cat, at: Date.now() };
 }
 
 let toastTimer;
@@ -598,6 +607,7 @@ $('#snipReset').onclick = () => { if (confirm('단축키를 기본값으로 되�
 function setEditing(it){
   editingId = it ? it.id : null;
   $('#fTitle').value = it ? it.t : '';
+  $('#fCat').value = it ? (it.cat || '') : $('#fCat').value;
   ta.value = it ? it.c : ''; updateCount();
   sel = { s: ta.value.length, e: ta.value.length };
   $('#compTitle').textContent = it ? '수정' : '';
@@ -660,26 +670,38 @@ $('#swapBtn').onclick = () => {
 };
 $('#copyNow').onclick = () => { if (ta.value.trim()) copyText(ta.value); };
 $('#saveBtn').onclick = () => {
-  const n = normalize({ t: $('#fTitle').value, c: ta.value });
+  const n = normalize({ t: $('#fTitle').value, c: ta.value, cat: $('#fCat').value });
   if (!n) { toast('내용을 입력해 주세요.'); return; }
   if (editingId) {
     const it = items.find(i => i.id === editingId);
-    if (it) Object.assign(it, { t: n.t, g: n.g, c: n.c });
+    if (it) Object.assign(it, { t: n.t, g: n.g, c: n.c, cat: n.cat });
     else items.unshift(n);
   } else items.unshift(n);
   saveItems(); setEditing(null); toast('저장되었습니다.');
 };
 
 const LIST_PAGE = 5;
+const NOCAT = '__none__';
+let catFilter = null;
+function renderCats(){
+  const cats = [...new Set(items.map(i => i.cat).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
+  $('#catList').innerHTML = cats.map(c => `<option value="${esc(c)}">`).join('');
+  if (catFilter && catFilter !== NOCAT && !cats.includes(catFilter)) catFilter = null;
+  const hasNone = items.some(i => !i.cat);
+  $('#cats').innerHTML = !cats.length ? '' : [`<button class="chip${!catFilter ? ' on' : ''}" data-cat="">전체</button>`]
+    .concat(cats.map(c => `<button class="chip${catFilter === c ? ' on' : ''}" data-cat="${esc(c)}">${esc(c)}</button>`))
+    .concat(hasNone ? [`<button class="chip${catFilter === NOCAT ? ' on' : ''}" data-cat="${NOCAT}">미분류</button>`] : []).join('');
+}
 let listLimit = LIST_PAGE;
 function visibleItems(){
   const q = $('#q').value.trim().toLowerCase();
   return items.filter(i =>
-    (!filterTag || i.g.includes(filterTag)) &&
+    (!catFilter || (catFilter === NOCAT ? !i.cat : i.cat === catFilter)) &&
     (!q || (i.t + '\n' + i.c + '\n' + i.g.join(' ')).toLowerCase().includes(q))
   );
 }
 function render(){
+  renderCats();
   const q = $('#q').value.trim().toLowerCase();
   $('#count').textContent = items.length + '개';
 
@@ -739,6 +761,11 @@ $('#list').onclick = e => {
 };
 $('#q').oninput = () => { listLimit = LIST_PAGE; render(); };
 $('#listMore').onclick = () => { listLimit += LIST_PAGE; render(); };
+$('#cats').onclick = e => {
+  const b = e.target.closest('[data-cat]'); if (!b) return;
+  const c = b.dataset.cat || null;
+  catFilter = catFilter === c ? null : c; listLimit = LIST_PAGE; render();
+};
 $('#listLess').onclick = () => { listLimit = LIST_PAGE; render(); $('#savedCard').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
 function toggleSearch(btn, input, onClear){
   const show = input.classList.toggle('hidden') === false;
@@ -1361,7 +1388,7 @@ function merge(list){
 }
 $('#exportBtn').onclick = () => {
   if (!items.length) { toast('백업할 OOC가 없습니다.'); return; }
-  const data = { app: 'ooc', version: 1, exported: new Date().toISOString(), snips, items: items.map(({ t, g, c }) => ({ t, g, c })) };
+  const data = { app: 'ooc', version: 1, exported: new Date().toISOString(), snips, items: items.map(({ t, g, c, cat }) => ({ t, g, c, ...(cat ? { cat } : {}) })) };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const d = new Date(), pad = n => String(n).padStart(2, '0');
   const a = document.createElement('a');
