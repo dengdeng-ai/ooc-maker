@@ -199,6 +199,16 @@
 
   .item{padding:12px 0;border-top:1px solid var(--line)}
   .item:first-child{border-top:0}
+  .grp>.item-top .info{cursor:pointer}
+  .grp .gic{display:inline-flex;color:var(--sub);vertical-align:-3px;margin-left:4px}
+  .grp .gic svg{width:14px;height:14px;transition:transform .15s;transform:rotate(-90deg)}
+  .grp.open .gic svg{transform:none}
+  .grp .sub{display:none;margin-top:8px;padding-left:12px;border-left:2px solid var(--line)}
+  .grp.open .sub{display:block}
+  .grp.open .gnames{display:none}
+  .gnames{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .grp .sub .item{padding:10px 0}
+  .grp .sub .item.cur{margin:0 -18px 0 -12px;padding:10px 18px 10px 12px}
   .item.cur{background:linear-gradient(90deg,var(--accent-soft),transparent);margin:0 -18px;padding:12px 18px}
   .item-top{display:flex;align-items:flex-start;gap:8px}
   .info{flex:1;min-width:0}
@@ -278,6 +288,7 @@
       <button class="link" id="selAll">전체 선택</button>
       <span class="selcount" id="selCount"></span>
       <button class="btn sm" id="selCancel">취소</button>
+      <button class="btn sm" id="selGroup">묶기</button>
       <button class="btn sm main" id="selShare">게시</button>
     </div>
     <div id="savedBody">
@@ -346,6 +357,18 @@
       <button class="btn" id="ceDel">삭제</button>
       <button class="btn" id="ceClose">취소</button>
       <button class="btn main" id="ceSave">저장</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="setEditBox">
+  <div class="card">
+    <div class="name">세트</div>
+    <input type="text" id="seName" maxlength="40" placeholder="세트 이름" autocomplete="off" style="margin-top:10px">
+    <div class="bar">
+      <button class="btn" id="seUngroup">묶음 해제</button>
+      <button class="btn" id="seClose">취소</button>
+      <button class="btn main" id="seSave">저장</button>
     </div>
   </div>
 </div>
@@ -486,7 +509,8 @@ function normalize(o){
   const t = String(o.t ?? o.title ?? '').trim() || c.trim().split('\n')[0].slice(0, 30);
   const cat = String(o.cat ?? '').trim().slice(0, 20);
   const note = String(o.n ?? o.note ?? '').trim().slice(0, 100);
-  return { id: uid(), t, g: [], c, cat, note, at: Date.now() };
+  const set = String(o.set ?? '').trim().slice(0, 40);
+  return { id: uid(), t, g: [], c, cat, note, ...(set ? { set } : {}), at: Date.now() };
 }
 
 let toastTimer;
@@ -747,26 +771,18 @@ function visibleItems(){
     (!q || (i.t + '\n' + i.c + '\n' + (i.note || '') + '\n' + (i.cat || '')).toLowerCase().includes(q))
   );
 }
-function render(){
-  renderCats();
-  const q = $('#q').value.trim().toLowerCase();
-  $('#count').textContent = items.length + '개';
-
-  const all = visibleItems();
-  const lpages = Math.max(1, Math.ceil(all.length / LIST_PAGE));
-  if (listPage > lpages) listPage = lpages;
-  const shown = all.slice((listPage - 1) * LIST_PAGE, listPage * LIST_PAGE);
-  $('#listPager').innerHTML = pagerHtml(listPage, lpages);
-  $('#listPager').classList.toggle('hidden', lpages <= 1);
-
-  if (!items.length) { $('#list').innerHTML = '<div class="empty">등록된 항목이 없습니다.</div>'; return; }
-  if (!shown.length) { $('#list').innerHTML = '<div class="empty">검색 결과가 없습니다.</div>'; return; }
-
-  $('#list').classList.toggle('selecting', selMode);
-  $('#selBar').classList.toggle('hidden', !selMode);
-  $('#selCount').textContent = selected.size + '개 선택';
-  const order = [...selected];
-  $('#list').innerHTML = shown.map(i => `
+let openSets = new Set();
+function entries(vis){
+  const out = [], map = {};
+  vis.forEach(i => {
+    if (!i.set) { out.push(i); return; }
+    if (!map[i.set]) { map[i.set] = { set: i.set, list: [] }; out.push(map[i.set]); }
+    map[i.set].list.push(i);
+  });
+  return out;
+}
+function itemHtml(i, order){
+  return `
     <div class="item${i.id === editingId ? ' cur' : ''}" data-id="${i.id}">
       <div class="item-top">
         ${selMode ? `<span class="cbox${selected.has(i.id) ? ' on' : ''}">${selected.has(i.id) ? order.indexOf(i.id) + 1 : ''}</span>` : ''}
@@ -782,15 +798,112 @@ function render(){
         </div>
       </div>
       <div class="body">${esc(i.c)}</div>
-    </div>`).join('');
+    </div>`;
+}
+function render(){
+  renderCats();
+  const q = $('#q').value.trim().toLowerCase();
+  $('#count').textContent = items.length + '개';
+
+  const all = entries(visibleItems());
+  const lpages = Math.max(1, Math.ceil(all.length / LIST_PAGE));
+  if (listPage > lpages) listPage = lpages;
+  const shown = all.slice((listPage - 1) * LIST_PAGE, listPage * LIST_PAGE);
+  $('#listPager').innerHTML = pagerHtml(listPage, lpages);
+  $('#listPager').classList.toggle('hidden', lpages <= 1);
+
+  if (!items.length) { $('#list').innerHTML = '<div class="empty">등록된 항목이 없습니다.</div>'; return; }
+  if (!shown.length) { $('#list').innerHTML = '<div class="empty">검색 결과가 없습니다.</div>'; return; }
+
+  $('#list').classList.toggle('selecting', selMode);
+  $('#selBar').classList.toggle('hidden', !selMode);
+  $('#selCount').textContent = selected.size + '개 선택';
+  const order = [...selected];
+  $('#list').innerHTML = shown.map(e => {
+    if (!e.set) return itemHtml(e, order);
+    const open = selMode || q || openSets.has(e.set) || e.list.some(i => i.id === editingId);
+    return `
+    <div class="item grp${open ? ' open' : ''}" data-set="${esc(e.set)}">
+      <div class="item-top">
+        <div class="info">
+          <div class="name"><span class="badge soft">세트 ${e.list.length}</span>${esc(e.set)}<span class="gic">${ICON.down}</span></div>
+          <div class="note gnames">${e.list.map(i => esc(i.t)).join(' · ')}</div>
+        </div>
+        <div class="acts${selMode ? ' hidden' : ''}">
+          <button class="ib" data-gact="share" title="게시하기">${ICON.share}</button>
+          <button class="ib" data-gact="edit" title="세트 편집">${ICON.edit}</button>
+          <button class="ib del" data-gact="del" title="삭제">${ICON.del}</button>
+        </div>
+      </div>
+      <div class="sub">${e.list.map(i => itemHtml(i, order)).join('')}</div>
+    </div>`;
+  }).join('');
 
   document.querySelectorAll('#list .body').forEach(b => { if (b.scrollHeight > b.clientHeight + 2) b.classList.add('long'); });
 }
+function setItems(name){ return items.filter(i => i.set === name); }
+let grpEdit = null;
+function openSetEdit(name, ids){
+  grpEdit = { name, ids };
+  $('#seName').value = name || '';
+  $('#seUngroup').classList.toggle('hidden', !name);
+  $('#setEditBox').classList.add('show');
+  setTimeout(() => $('#seName').focus(), 50);
+}
+function closeSetEdit(){ $('#setEditBox').classList.remove('show'); grpEdit = null; }
+$('#seClose').onclick = closeSetEdit;
+$('#setEditBox').addEventListener('click', e => { if (e.target.id === 'setEditBox') closeSetEdit(); });
+$('#seSave').onclick = () => {
+  if (!grpEdit) return;
+  const to = $('#seName').value.trim().slice(0, 40);
+  if (!to) { toast('세트 이름을 입력해 주세요.'); return; }
+  const { name, ids } = grpEdit;
+  const list = name ? setItems(name) : ids.map(id => items.find(i => i.id === id)).filter(Boolean);
+  if (name && to !== name && items.some(i => i.set === to)) { toast('이미 있는 세트 이름입니다.'); return; }
+  if (!name) {
+    const rest = items.filter(i => !list.includes(i));
+    const at = items.indexOf(list[0]);
+    const before = items.slice(0, at).filter(i => !list.includes(i)).length;
+    rest.splice(before, 0, ...list);
+    items = rest;
+  }
+  list.forEach(i => { i.set = to; });
+  openSets.add(to); if (name) openSets.delete(name);
+  saveItems(); closeSetEdit();
+  if (selMode) setSelMode(false); else render();
+  toast(name ? '수정되었습니다.' : '세트로 묶었습니다.');
+};
+$('#seUngroup').onclick = () => {
+  if (!grpEdit || !grpEdit.name) return;
+  setItems(grpEdit.name).forEach(i => { delete i.set; });
+  openSets.delete(grpEdit.name);
+  saveItems(); closeSetEdit(); render(); toast('묶음이 해제되었습니다.');
+};
+$('#seName').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); $('#seSave').click(); } });
 
 let selMode = false;
 const selected = new Set();
 $('#list').onclick = e => {
   const row = e.target.closest('.item'); if (!row) return;
+  if (row.dataset.set != null) {
+    const name = row.dataset.set, list = setItems(name);
+    if (selMode) {
+      const all = list.every(i => selected.has(i.id));
+      list.forEach(i => all ? selected.delete(i.id) : selected.add(i.id));
+      render(); return;
+    }
+    const g = e.target.closest('[data-gact]');
+    if (!g) { openSets.has(name) ? openSets.delete(name) : openSets.add(name); row.classList.toggle('open'); return; }
+    if (g.dataset.gact === 'share') shareSet(name, list);
+    else if (g.dataset.gact === 'edit') openSetEdit(name);
+    else if (g.dataset.gact === 'del' && confirm(`'${name}' 세트를 삭제하시겠습니까? 세트에 포함된 OOC ${list.length}개가 모두 삭제됩니다.`)) {
+      items = items.filter(i => i.set !== name);
+      if (editingId && !items.some(i => i.id === editingId)) setEditing(null);
+      openSets.delete(name);
+      saveItems(); render(); toast('삭제되었습니다.');
+    }
+    return;
+  }
   const it = items.find(i => i.id === row.dataset.id); if (!it) return;
   if (selMode) { selected.has(it.id) ? selected.delete(it.id) : selected.add(it.id); render(); return; }
   const body = e.target.closest('.body');
@@ -1049,6 +1162,17 @@ $('#shareList').onclick = () => {
   setSelMode(true);
 };
 $('#selCancel').onclick = () => setSelMode(false);
+$('#selGroup').onclick = () => {
+  const ids = [...selected];
+  if (ids.length < 2) { toast('2개 이상 선택해 주세요.'); return; }
+  const list = ids.map(id => items.find(i => i.id === id)).filter(Boolean);
+  const sets = [...new Set(list.map(i => i.set).filter(Boolean))];
+  openSetEdit(null, ids);
+  if (sets.length === 1) $('#seName').value = sets[0];
+};
+function shareSet(name, list){
+  openLink({ i: list.map(pick) }, name).then(() => { $('#lSeries').value = name; $('#lSeries').dispatchEvent(new Event('input')); });
+}
 $('#selAll').onclick = () => {
   const vis = visibleItems();
   const all = vis.every(i => selected.has(i.id));
@@ -1059,6 +1183,8 @@ $('#selShare').onclick = () => {
   const list = [...selected].map(id => items.find(i => i.id === id)).filter(Boolean);
   if (!list.length) { toast('선택된 OOC가 없습니다.'); return; }
   setSelMode(false);
+  const sets = [...new Set(list.map(i => i.set))];
+  if (list.length > 1 && sets.length === 1 && sets[0]) { shareSet(sets[0], list); return; }
   openLink({ i: list.map(pick) }, list.length === 1 ? list[0].t : `OOC ${list.length}개`);
 };
 $('#shareNow').onclick = () => {
@@ -1127,7 +1253,7 @@ function openShared(o){
   const list = (Array.isArray(o.i) ? o.i : (o.c ? [o] : [])).map(normalize).filter(Boolean);
   const sn = Array.isArray(o.s) ? o.s.map(toSnip).filter(Boolean) : [];
   if (!list.length && !sn.length) { viewMsg('내용이 없는 링크입니다.'); return; }
-  incoming = { list, sn };
+  incoming = { list, sn, head: typeof o.h === 'string' ? o.h.trim() : '' };
   enterView();
   const note = typeof o.n === 'string' && o.n.trim() ? `<div class="note">${esc(o.n.trim().slice(0, 100))}</div>` : '';
   let html = '';
@@ -1173,7 +1299,7 @@ $('#viewBody').onclick = e => {
     copyText(it.c); countDownload(viewPostId);
     if (btn.classList.contains('ib')) { btn.innerHTML = ICON.done; setTimeout(() => { btn.innerHTML = ICON.copy; }, 1200); }
   } else if (btn.dataset.v === 'save') {
-    const n = merge(incoming.list); countDownload(viewPostId);
+    const n = merge(incoming.list, incoming.head || (incoming.list.length > 1 ? `${incoming.list[0].t} 외 ${incoming.list.length - 1}개` : '')); countDownload(viewPostId);
     let m = 0;
     incoming.sn.forEach(x => { if (!snips.some(o => o.l === x.l && o.x === x.x)) { snips.push(x); m++; } });
     if (m) { saveSnips(); renderSnips(); }
@@ -1388,7 +1514,7 @@ $('#board').onclick = async e => {
     copyText(x.c); countDownload(p.id);
     btn.innerHTML = ICON.done; setTimeout(() => { btn.innerHTML = ICON.copy; }, 1200);
   } else if (act === 'keep') {
-    const n = merge(list.length > 1 ? list : [{ t: p.title, c: list[0] && list[0].c }]); saveItems(); render(); countDownload(p.id);
+    const n = merge(list.length > 1 ? list : [{ t: p.title, c: list[0] && list[0].c }], p.title); saveItems(); render(); countDownload(p.id);
     toast(n ? '내 OOC에 저장되었습니다.' : '이미 저장되어 있습니다.');
   } else if (act === 'report') {
     if (reported[p.id]) return;
@@ -1585,11 +1711,17 @@ document.addEventListener('click', e => {
 });
 window.addEventListener('popstate', checkHash);
 
-function merge(list){
+function merge(list, set){
   let added = 0;
   const seen = new Set(items.map(i => i.t + '\u0000' + i.c));
+  if (set && list.length > 1) {
+    set = set.trim().slice(0, 40);
+    let name = set, k = 2;
+    while (items.some(i => i.set === name)) name = `${set} (${k++})`;
+    set = name;
+  } else set = '';
   list.forEach(o => {
-    const n = normalize(o); if (!n) return;
+    const n = normalize(set ? { ...o, set } : o); if (!n) return;
     const k = n.t + '\u0000' + n.c; if (seen.has(k)) return;
     seen.add(k); items.push(n); added++;
   });
@@ -1597,7 +1729,7 @@ function merge(list){
 }
 $('#exportBtn').onclick = () => {
   if (!items.length) { toast('백업할 OOC가 없습니다.'); return; }
-  const data = { app: 'ooc', version: 1, exported: new Date().toISOString(), snips, items: items.map(({ t, g, c, cat, note }) => ({ t, g, c, ...(cat ? { cat } : {}), ...(note ? { note } : {}) })) };
+  const data = { app: 'ooc', version: 1, exported: new Date().toISOString(), snips, items: items.map(({ t, g, c, cat, note, set }) => ({ t, g, c, ...(cat ? { cat } : {}), ...(note ? { note } : {}), ...(set ? { set } : {}) })) };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const d = new Date(), pad = n => String(n).padStart(2, '0');
   const a = document.createElement('a');
