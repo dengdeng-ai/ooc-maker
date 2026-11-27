@@ -92,6 +92,9 @@
   .cat-menu button{display:block;width:100%;text-align:left;border:0;background:none;color:var(--text);font:inherit;padding:8px 10px;border-radius:7px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .cat-menu button:hover,.cat-menu button.act{background:var(--accent-soft)}
   .cats{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px}
+  .tabs{display:flex;gap:16px;margin-bottom:10px;border-bottom:1px solid var(--line)}
+  .tabs button{font:inherit;font-size:13.5px;font-weight:600;color:var(--sub);background:none;border:0;padding:0 0 8px;margin-bottom:-1px;border-bottom:2px solid transparent;cursor:pointer}
+  .tabs button.on{color:var(--text);border-bottom-color:var(--accent)}
   .cats:empty{display:none}
   .cats .chip{font-size:12px;padding:3px 11px}
   .cats .cat-edit{display:inline-flex;align-items:center;padding:3px 8px}
@@ -292,6 +295,7 @@
       <button class="btn sm main" id="selShare">게시</button>
     </div>
     <div id="savedBody">
+      <div class="tabs hidden" id="tabs"><button data-tab="mine">내 OOC</button><button data-tab="bm">북마크</button></div>
       <div class="cats" id="cats"></div>
       <div id="list"></div>
       <div class="pager hidden" id="listPager"></div>
@@ -510,7 +514,8 @@ function normalize(o){
   const cat = String(o.cat ?? '').trim().slice(0, 20);
   const note = String(o.n ?? o.note ?? '').trim().slice(0, 100);
   const set = String(o.set ?? '').trim().slice(0, 40);
-  return { id: uid(), t, g: [], c, cat, note, ...(set ? { set } : {}), at: Date.now() };
+  const src = o.src === 'bm' ? { src: 'bm' } : {};
+  return { id: uid(), t, g: [], c, cat, note, ...(set ? { set } : {}), ...src, at: Date.now() };
 }
 
 let toastTimer;
@@ -747,17 +752,24 @@ $('#saveBtn').onclick = () => {
     const it = items.find(i => i.id === editingId);
     if (it) Object.assign(it, { t: n.t, g: n.g, c: n.c, cat: n.cat, note: n.note });
     else items.unshift(n);
-  } else items.unshift(n);
+  } else { items.unshift(n); tab = 'mine'; }
   saveItems(); setEditing(null); toast('저장되었습니다.');
 };
 
 const LIST_PAGE = 5;
 const NOCAT = '__none__';
 let catFilter = null;
+let tab = 'mine';
+const inTab = i => (i.src === 'bm') === (tab === 'bm');
+const tabItems = () => items.filter(inTab);
 function renderCats(){
-  const cats = [...new Set(items.map(i => i.cat).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
+  const hasBm = items.some(i => i.src === 'bm');
+  if (!hasBm) tab = 'mine';
+  $('#tabs').classList.toggle('hidden', !hasBm);
+  $('#tabs').querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+  const cats = [...new Set(tabItems().map(i => i.cat).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
   if (catFilter && catFilter !== NOCAT && !cats.includes(catFilter)) catFilter = null;
-  const hasNone = items.some(i => !i.cat);
+  const hasNone = tabItems().some(i => !i.cat);
   $('#cats').innerHTML = !cats.length ? '' : [`<button class="chip${!catFilter ? ' on' : ''}" data-cat="">전체</button>`]
     .concat(cats.map(c => `<button class="chip${catFilter === c ? ' on' : ''}" data-cat="${esc(c)}">${esc(c)}</button>`))
     .concat(hasNone ? [`<button class="chip${catFilter === NOCAT ? ' on' : ''}" data-cat="${NOCAT}">미분류</button>`] : [])
@@ -766,7 +778,7 @@ function renderCats(){
 let listPage = 1;
 function visibleItems(){
   const q = $('#q').value.trim().toLowerCase();
-  return items.filter(i =>
+  return items.filter(i => inTab(i) &&
     (!catFilter || (catFilter === NOCAT ? !i.cat : i.cat === catFilter)) &&
     (!q || (i.t + '\n' + i.c + '\n' + (i.note || '') + '\n' + (i.cat || '')).toLowerCase().includes(q))
   );
@@ -803,7 +815,7 @@ function itemHtml(i, order){
 function render(){
   renderCats();
   const q = $('#q').value.trim().toLowerCase();
-  $('#count').textContent = items.length + '개';
+  $('#count').textContent = tabItems().length + '개';
 
   const all = entries(visibleItems());
   const lpages = Math.max(1, Math.ceil(all.length / LIST_PAGE));
@@ -812,7 +824,7 @@ function render(){
   $('#listPager').innerHTML = pagerHtml(listPage, lpages);
   $('#listPager').classList.toggle('hidden', lpages <= 1);
 
-  if (!items.length) { $('#list').innerHTML = '<div class="empty">등록된 항목이 없습니다.</div>'; return; }
+  if (!tabItems().length) { $('#list').innerHTML = '<div class="empty">등록된 항목이 없습니다.</div>'; return; }
   if (!shown.length) { $('#list').innerHTML = '<div class="empty">검색 결과가 없습니다.</div>'; return; }
 
   $('#list').classList.toggle('selecting', selMode);
@@ -954,6 +966,11 @@ $('#catTg').onclick = () => {
   if (!$('#catMenu').classList.contains('hidden')) { hideCatMenu(); return; }
   if (!allCats().length) { $('#fCat').focus(); return; }
   showCatMenu(true);
+};
+$('#tabs').onclick = e => {
+  const b = e.target.closest('[data-tab]'); if (!b || b.dataset.tab === tab) return;
+  tab = b.dataset.tab; catFilter = null; listPage = 1;
+  if (selMode) setSelMode(false); else render();
 };
 $('#cats').onclick = e => {
   if (e.target.closest('[data-catedit]')) { openCatEdit(catFilter); return; }
@@ -1266,7 +1283,7 @@ function openShared(o){
       <pre class="detail">${esc(it.c)}</pre>
       <div class="bar">
         <button class="btn soft" data-v="copy" data-i="0">복사</button>
-        <button class="btn main" data-v="save">내 OOC로 저장</button>
+        <button class="btn main" data-v="save">북마크에 저장</button>
       </div>
     </div>`;
   } else {
@@ -1278,14 +1295,14 @@ function openShared(o){
         <div class="vsub-top"><span class="vsub-name">${esc(it.t)}</span><button class="ib copy" data-v="copy" data-i="${i}" title="복사">${ICON.copy}</button></div>
         <pre class="detail">${esc(it.c)}</pre>
       </div>`).join('')}
-      ${sn.length ? '' : `<div class="bar"><button class="btn main" data-v="save">전부 내 OOC로 저장</button></div>`}
+      ${sn.length ? '' : `<div class="bar"><button class="btn main" data-v="save">전부 북마크에 저장</button></div>`}
     </div>`;
     if (sn.length) html += `
     <div class="card">
       <div class="card-head"><div class="t">문구 버튼<small>${sn.length}개</small></div></div>
       <div class="snips">${sn.map(x => `<span class="snip" title="${esc(x.x)}">${esc(x.l)}</span>`).join('')}</div>
     </div>`;
-    if (sn.length) html += `<div class="bar" style="margin-top:0"><button class="btn main" data-v="save">전부 내 OOC로 저장</button></div>`;
+    if (sn.length) html += `<div class="bar" style="margin-top:0"><button class="btn main" data-v="save">전부 북마크에 저장</button></div>`;
   }
   $('#viewBody').innerHTML = html;
   document.querySelectorAll('#viewBody .body, #viewBody .vsub pre.detail').forEach(b => { if (b.scrollHeight > b.clientHeight + 2) b.classList.add('long'); });
@@ -1299,12 +1316,13 @@ $('#viewBody').onclick = e => {
     copyText(it.c); countDownload(viewPostId);
     if (btn.classList.contains('ib')) { btn.innerHTML = ICON.done; setTimeout(() => { btn.innerHTML = ICON.copy; }, 1200); }
   } else if (btn.dataset.v === 'save') {
-    const n = merge(incoming.list, incoming.head || (incoming.list.length > 1 ? `${incoming.list[0].t} 외 ${incoming.list.length - 1}개` : '')); countDownload(viewPostId);
+    const n = merge(incoming.list, incoming.head || (incoming.list.length > 1 ? `${incoming.list[0].t} 외 ${incoming.list.length - 1}개` : ''), 'bm'); countDownload(viewPostId);
     let m = 0;
     incoming.sn.forEach(x => { if (!snips.some(o => o.l === x.l && o.x === x.x)) { snips.push(x); m++; } });
     if (m) { saveSnips(); renderSnips(); }
+    if (n) tab = 'bm';
     saveItems(); render();
-    toast(n || m ? '저장되었습니다.' : '이미 모두 저장되어 있습니다.');
+    toast(n || m ? '북마크에 저장되었습니다.' : '이미 모두 저장되어 있습니다.');
     btn.textContent = '저장 완료'; btn.disabled = true;
   }
 };
@@ -1471,7 +1489,7 @@ function renderBoard(){
           ${shut
             ? `<button class="ib copy" data-act="open" title="열기">${ICON.lock}</button>`
             : `${multi ? '' : `<button class="ib copy" data-act="copy" data-k="0" title="복사">${ICON.copy}</button>`}
-               <button class="ib" data-act="keep" title="${multi ? '전부 내 OOC로 저장' : '내 OOC로 저장'}">${ICON.save}</button>`}
+               <button class="ib" data-act="keep" title="${multi ? '전부 북마크에 저장' : '북마크에 저장'}">${ICON.save}</button>`}
           ${admin && p.reports ? `<button class="ib" data-act="restore" title="신고 초기화">${ICON.done}</button>` : ''}
           ${mine[p.id] ? `<button class="ib" data-act="edit" title="수정">${ICON.edit}</button>` : ''}
           ${mine[p.id] || admin ? `<button class="ib del" data-act="del" title="삭제">${ICON.del}</button>` : `<button class="ib del" data-act="report" title="신고"${reported[p.id] ? ' disabled style="opacity:.35"' : ''}>${ICON.flag}</button>`}
@@ -1514,8 +1532,8 @@ $('#board').onclick = async e => {
     copyText(x.c); countDownload(p.id);
     btn.innerHTML = ICON.done; setTimeout(() => { btn.innerHTML = ICON.copy; }, 1200);
   } else if (act === 'keep') {
-    const n = merge(list.length > 1 ? list : [{ t: p.title, c: list[0] && list[0].c }], p.title); saveItems(); render(); countDownload(p.id);
-    toast(n ? '내 OOC에 저장되었습니다.' : '이미 저장되어 있습니다.');
+    const n = merge(list.length > 1 ? list : [{ t: p.title, c: list[0] && list[0].c }], p.title, 'bm'); if (n) tab = 'bm'; saveItems(); render(); countDownload(p.id);
+    toast(n ? '북마크에 저장되었습니다.' : '이미 저장되어 있습니다.');
   } else if (act === 'report') {
     if (reported[p.id]) return;
     if (!confirm(`'${p.title}'을(를) 신고하시겠습니까? 신고가 누적되면 게시물이 숨겨집니다.`)) return;
@@ -1711,7 +1729,7 @@ document.addEventListener('click', e => {
 });
 window.addEventListener('popstate', checkHash);
 
-function merge(list, set){
+function merge(list, set, src){
   let added = 0;
   const seen = new Set(items.map(i => i.t + '\u0000' + i.c));
   if (set && list.length > 1) {
@@ -1721,7 +1739,7 @@ function merge(list, set){
     set = name;
   } else set = '';
   list.forEach(o => {
-    const n = normalize(set ? { ...o, set } : o); if (!n) return;
+    const n = normalize({ ...o, ...(set ? { set } : {}), ...(src ? { src } : {}) }); if (!n) return;
     const k = n.t + '\u0000' + n.c; if (seen.has(k)) return;
     seen.add(k); items.push(n); added++;
   });
@@ -1729,7 +1747,7 @@ function merge(list, set){
 }
 $('#exportBtn').onclick = () => {
   if (!items.length) { toast('백업할 OOC가 없습니다.'); return; }
-  const data = { app: 'ooc', version: 1, exported: new Date().toISOString(), snips, items: items.map(({ t, g, c, cat, note, set }) => ({ t, g, c, ...(cat ? { cat } : {}), ...(note ? { note } : {}), ...(set ? { set } : {}) })) };
+  const data = { app: 'ooc', version: 1, exported: new Date().toISOString(), snips, items: items.map(({ t, g, c, cat, note, set, src }) => ({ t, g, c, ...(cat ? { cat } : {}), ...(note ? { note } : {}), ...(set ? { set } : {}), ...(src ? { src } : {}) })) };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const d = new Date(), pad = n => String(n).padStart(2, '0');
   const a = document.createElement('a');
