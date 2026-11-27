@@ -338,6 +338,7 @@ const DEFAULT_SNIPS = [
   { l: '[]', x: '[]' },
   { l: '()', x: '()' },
   { l: 'OOC:', x: 'OOC:' },
+  { l: '#', x: '#' },
   { l: '{{char}}', x: '{{char}}' },
   { l: '{{user}}', x: '{{user}}' },
   { l: 'NPC', x: 'NPC' },
@@ -463,7 +464,7 @@ function insertSnip(text){
     const block = false;
     const needNL = block && before && !/\n$/.test(before);
     const needSpaceBefore = !block && before && !/\s$/.test(before) && /^[A-Za-z가-힣{]/.test(text) && !/[\[(*"「『{]$/.test(before);
-    const trail = /:$/.test(text) && !/^\s/.test(ta.value.slice(e)) ? ' ' : '';
+    const trail = /[:#]$/.test(text) && !/^\s/.test(ta.value.slice(e)) ? ' ' : '';
     ins = (needNL ? '\n' : needSpaceBefore ? ' ' : '') + text + trail;
     caretS = caretE = s + ins.length;
   }
@@ -478,7 +479,7 @@ function insertSnip(text){
 }
 
 function renderSnips(){
-  const kind = s => s.x !== s.l ? 2 : (PAIRS[s.l] || s.l === 'OOC:') ? 0 : 1;
+  const kind = s => s.x !== s.l ? 2 : (PAIRS[s.l] || s.l === 'OOC:' || s.l === '#') ? 0 : 1;
   let prev = null;
   $('#snips').innerHTML = snips.map((s, i) => {
     const k = kind(s), br = prev !== null && k !== prev ? '<i class="snip-br"></i>' : '';
@@ -1313,6 +1314,14 @@ $('#file').onchange = async e => {
 (async function init(){
   const s = readLS(SNIP_KEY);
   snips = Array.isArray(s) ? s.map(toSnip).filter(Boolean) : DEFAULT_SNIPS.map(o => ({ ...o }));
+  if (Array.isArray(s) && !readLS('ooc.snips.hash.v1')) {
+    if (!snips.some(x => x.l === '#')) {
+      const at = snips.findIndex(x => x.l === 'OOC:');
+      snips.splice(at >= 0 ? at + 1 : snips.length, 0, { l: '#', x: '#' });
+      saveSnips();
+    }
+    writeLS('ooc.snips.hash.v1', 1);
+  }
   renderSnips();
   const stored = readLS(KEY);
   if (Array.isArray(stored)) items = stored;
