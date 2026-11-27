@@ -193,8 +193,8 @@
 </style>
 </head>
 <body>
-<div class="wrap" id="main">
-  <div class="head"><h1>OOC 공방</h1><div class="row" style="gap:14px"><a class="pill" href="#board">공유 게시판</a><button class="theme-btn" id="themeBtn" aria-label="다크 모드 전환"></button></div></div>
+<div class="wrap hidden" id="main">
+  <div class="head"><div class="title-row"><a class="back" href="#" aria-label="뒤로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></a><h1>OOC 작성</h1></div><button class="theme-btn" id="themeBtn" aria-label="다크 모드 전환"></button></div>
 
   <div class="card" id="composer">
     <div class="card-head">
@@ -228,14 +228,6 @@
     </div>
   </div>
 
-  <div class="card hidden" id="topCard">
-    <div class="card-head">
-      <div class="t">인기 OOC</div>
-      <a class="link home" href="#board" style="font-size:13px">전체 보기</a>
-    </div>
-    <div id="topList"></div>
-  </div>
-
   <div class="card" id="savedCard">
     <div class="card-head">
       <button class="t fold-t" id="savedFold">저장한 OOC<small id="count">0개</small><span class="fold-ic" id="savedFoldIc"></span></button>
@@ -264,15 +256,14 @@
   </div>
 </div>
 
-<div class="wrap hidden" id="boardPage">
-  <div class="head"><div class="title-row"><a class="back" href="#" aria-label="뒤로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></a><h1>OOC 게시판</h1></div><button class="theme-btn" aria-label="다크 모드 전환"></button></div>
+<div class="wrap" id="boardPage">
+  <div class="head"><h1>OOC 공방</h1><div class="row" style="gap:14px"><a class="pill" href="#write">OOC 작성</a><button class="theme-btn" aria-label="다크 모드 전환"></button></div></div>
   <div class="card">
     <div class="card-head">
-      <div class="t"></div>
+      <div class="sortbar" id="bsort" style="margin:0"><button class="chip on" data-s="new">최신순</button><button class="chip" data-s="top">인기순</button></div>
       <div class="row" style="gap:10px"><button class="link hidden" id="adminOut">로그아웃</button><button class="ib sbtn" id="bqBtn" title="검색" aria-label="검색"></button><button class="ib sbtn" id="boardReload" title="새로고침" aria-label="새로고침"></button></div>
     </div>
     <input type="search" id="bq" class="search hidden" placeholder="검색">
-    <div class="sortbar" id="bsort"><button class="chip on" data-s="new">최신순</button><button class="chip" data-s="top">인기순</button></div>
     <div id="board"></div>
     <button class="btn sm more hidden" id="boardMore">더 보기</button>
   </div>
@@ -888,19 +879,23 @@ function enterView(){
   const owner = publishing && !fromPost;
   $('#view').classList.toggle('owner', owner);
   $('#pubPanel').classList.toggle('hidden', !owner);
-  $('#homeLink').href = owner ? '#' : fromPost ? '#board' : location.pathname + location.search;
-  $('#viewH').textContent = fromPost ? 'OOC 게시판' : 'OOC 공방';
+  $('#homeLink').href = owner ? '#write' : fromPost ? '#' : location.pathname + location.search;
+  $('#viewH').textContent = 'OOC 공방';
   $('#postLink').classList.toggle('hidden', !fromPost);
   if (wasHidden) window.scrollTo(0, 0);
 }
-function leaveView(){
-  setTimeout(loadTop, 0);
-  if (draftPending) { draftPending = false; setTimeout(restoreDraft, 0); }
+function resetView(){
   publishing = false; viewPostId = null;
   $('#view').classList.remove('owner'); $('#pubPanel').classList.add('hidden');
   incoming = null; $('#viewBody').innerHTML = '';
-  showPage('main');
 }
+function goWrite(){
+  const wasHidden = $('#main').classList.contains('hidden');
+  resetView(); showPage('main');
+  if (wasHidden) window.scrollTo(0, 0);
+  if (draftPending) { draftPending = false; setTimeout(restoreDraft, 0); }
+}
+function leaveView(){ resetView(); enterBoard(); }
 function viewMsg(msg){
   enterView();
   $('#viewBody').innerHTML = `<div class="card"><div class="empty" style="padding:8px 0">${esc(msg)}</div></div>`;
@@ -1095,22 +1090,6 @@ function postList(p){
     return [{ t: p.title, c: p.body }];
   }
   return [{ t: p.title, c: p.body }];
-}
-async function loadTop(){
-  try {
-    const rows = await sb('/rest/v1/posts?select=id,title,adult,locked,count,note,downloads&order=downloads.desc,id.desc&limit=3');
-    if (!rows || !rows.length) { $('#topCard').classList.add('hidden'); return; }
-    $('#topList').innerHTML = rows.map((p, i) => `
-      <a class="top-item" href="#post=${p.id}">
-        <span class="top-rank">${i + 1}</span>
-        <div class="info">
-          <div class="name">${p.adult ? '<span class="badge">성인</span>' : ''}${(p.count || 1) > 1 ? `<span class="badge soft">세트 ${p.count}</span>` : ''}${esc(p.title)}</div>
-          ${p.note ? `<div class="note">${esc(p.note)}</div>` : ''}
-        </div>
-        ${p.downloads ? `<span class="meta dl" style="margin:0">${ICON.save}${p.downloads}</span>` : (p.locked ? `<span class="meta" style="margin:0">${ICON.lock}</span>` : '')}
-      </a>`).join('');
-    $('#topCard').classList.remove('hidden');
-  } catch(e){ $('#topCard').classList.add('hidden'); }
 }
 function renderBoard(){
   $('#boardMore').classList.toggle('hidden', boardEnd || !posts.length);
@@ -1346,8 +1325,8 @@ async function checkHash(){
     else if (h.startsWith('#p=')) openShared(await unpack(h.slice(3)));
     else if (h.startsWith('#s=')) openShared(legacyDec(h.slice(3)));
     else if (h.startsWith('#post=')) openPost(h.slice(6));
-    else if (h === '#board') enterBoard();
-    else if (h === '#admin') { enterBoard(); openAdmin(); }
+    else if (h === '#write') goWrite();
+    else if (h === '#admin') { leaveView(); openAdmin(); }
     else leaveView();
   } catch(e){ viewMsg('올바르지 않은 링크입니다.'); }
 }
@@ -1416,9 +1395,9 @@ $('#file').onchange = async e => {
     } catch(e){}
   }
   render();
-  loadTop();
   checkHash();
-  if (!location.hash || location.hash === '#') restoreDraft(); else draftPending = true;
+  draftPending = true;
+  if (location.hash === '#write') { draftPending = false; restoreDraft(); }
 })();
 </script>
 </body>
