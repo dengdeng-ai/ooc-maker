@@ -194,7 +194,7 @@
       <div class="t" id="compTitle"></div>
       <div class="row" style="gap:12px">
         <button class="link hidden" id="cancelEdit">수정 취소</button>
-        <button class="link" id="snipEdit">버튼 편집</button>
+        <button class="link" id="snipEdit">단축키 편집</button>
       </div>
     </div>
     <div class="fields">
@@ -202,8 +202,8 @@
     </div>
     <div class="snips" id="snips"></div>
     <div class="snip-add hidden" id="snipAdd">
-      <input type="text" id="snipLabel" placeholder="버튼 이름">
-      <textarea id="snipText" placeholder="들어갈 내용 (비우면 버튼 이름 그대로)"></textarea>
+      <input type="text" id="snipLabel" placeholder="단축키 이름">
+      <textarea id="snipText" placeholder="들어갈 내용 (비우면 단축키 이름 그대로)"></textarea>
       <div class="bar">
         <button class="btn sm" id="snipReset">기본값</button>
         <button class="btn sm hidden" id="snipCancel">취소</button>
@@ -569,7 +569,7 @@ $('#snipEdit').onclick = () => {
   const on = $('#snips').classList.toggle('editing');
   setTimeout(layoutSnips, 0);
   $('#snipAdd').classList.toggle('hidden', !on);
-  $('#snipEdit').textContent = on ? '완료' : '버튼 편집';
+  $('#snipEdit').textContent = on ? '완료' : '단축키 편집';
   resetSnipForm();
 };
 function addSnip(){
@@ -583,7 +583,7 @@ function addSnip(){
 $('#snipAddBtn').onclick = addSnip;
 $('#snipCancel').onclick = resetSnipForm;
 $('#snipLabel').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); $('#snipText').focus(); } });
-$('#snipReset').onclick = () => { if (confirm('버튼을 기본값으로 되돌리시겠습니까?')) { snips = DEFAULT_SNIPS.map(s => ({ ...s })); saveSnips(); resetSnipForm(); } };
+$('#snipReset').onclick = () => { if (confirm('단축키를 기본값으로 되돌리시겠습니까?')) { snips = DEFAULT_SNIPS.map(s => ({ ...s })); saveSnips(); resetSnipForm(); } };
 
 function setEditing(it){
   editingId = it ? it.id : null;
