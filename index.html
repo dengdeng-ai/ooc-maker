@@ -1204,7 +1204,7 @@ async function adminLogin(){
     setAdmin({ access_token: d.access_token, refresh_token: d.refresh_token, expires_at: d.expires_at || Date.now() / 1000 + d.expires_in });
     const isAdmin = await sb('/rest/v1/rpc/is_admin', { method: 'POST', body: '{}' });
     if (!isAdmin) { setAdmin(null); toast('관리자 권한이 없는 계정입니다.'); }
-    else { closeAdmin(); toast('관리자로 로그인되었습니다.'); location.hash = '#board'; loadBoard(false); }
+    else { closeAdmin(); toast('관리자로 로그인되었습니다.'); goHome(); loadBoard(false); }
   } catch(e){ setAdmin(null); toast('로그인하지 못했습니다.'); }
   $('#aLogin').disabled = false;
 }
@@ -1331,6 +1331,15 @@ async function checkHash(){
   } catch(e){ viewMsg('올바르지 않은 링크입니다.'); }
 }
 window.addEventListener('hashchange', checkHash);
+function goHome(){
+  history.pushState(null, '', location.pathname + location.search);
+  checkHash();
+}
+document.addEventListener('click', e => {
+  const a = e.target.closest('a[href="#"]'); if (!a) return;
+  e.preventDefault(); goHome();
+});
+window.addEventListener('popstate', checkHash);
 
 function merge(list){
   let added = 0;
