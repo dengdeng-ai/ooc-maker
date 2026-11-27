@@ -214,7 +214,7 @@
     <div class="count" id="charCount">0자</div>
     <div class="bar">
       <button class="btn icon" id="clearBtn" title="비우기" aria-label="비우기"></button>
-      <button class="btn icon" id="swapBtn" title="{{char}}↔NPC, {{user}}↔PC" aria-label="표현 전환"></button>
+      <button class="btn icon" id="swapBtn" title="{{char}}↔{{user}}, NPC↔PC" aria-label="표현 전환"></button>
       <button class="btn" id="shareNow">게시</button>
       <button class="btn soft" id="copyNow">복사</button>
       <button class="btn main" id="saveBtn">저장</button>
@@ -589,7 +589,7 @@ $('#clearBtn').onclick = () => {
   $('#fTitle').value = ''; ta.value = ''; updateCount(); sel = { s: 0, e: 0 }; ta.focus();
 };
 $('#swapBtn').onclick = () => {
-  const map = { '{{char}}': 'NPC', '{{user}}': 'PC', 'NPC': '{{char}}', 'PC': '{{user}}' };
+  const map = { '{{char}}': '{{user}}', '{{user}}': '{{char}}', 'NPC': 'PC', 'PC': 'NPC' };
   const re = /\{\{char\}\}|\{\{user\}\}|\bNPC\b|\bPC\b/g;
   if (!re.test(ta.value)) { toast('전환할 표현이 없습니다.'); return; }
   re.lastIndex = 0;
