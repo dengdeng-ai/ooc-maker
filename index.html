@@ -990,7 +990,7 @@ function adultBlocked(){
 $('#lCopy').onclick = () => { if ($('#lCopy').disabled || adultBlocked()) return; copyText(linkUrl, '링크가 복사되었습니다.'); };
 function shareX(title, note, url){
   const text = [title, note].filter(Boolean).join('\n');
-  window.open('https://x.com/intent/tweet?text=' + encodeURIComponent(text) + '&url=' + encodeURIComponent(url), '_blank', 'noopener');
+  window.open('https://x.com/intent/tweet?text=' + encodeURIComponent(text + '\n\n' + url), '_blank', 'noopener');
 }
 $('#lX').onclick = () => {
   if ($('#lCopy').disabled || adultBlocked()) return;
