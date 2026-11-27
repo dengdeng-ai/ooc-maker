@@ -290,6 +290,17 @@
   </div>
 </div>
 
+<div class="modal" id="draftBox">
+  <div class="card">
+    <div class="name">작성 중이던 내용이 있습니다. 불러오시겠습니까?</div>
+    <pre class="detail" id="dPreview" style="max-height:30vh"></pre>
+    <div class="bar">
+      <button class="btn" id="dDrop">삭제</button>
+      <button class="btn main" id="dLoad">불러오기</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal" id="editBox">
   <div class="card">
     <div class="name">게시물 수정</div>
@@ -447,7 +458,7 @@ const ta = $('#fBody');
 let sel = { s: 0, e: 0 };
 ['select','keyup','mouseup','input'].forEach(ev => ta.addEventListener(ev, () => { sel = { s: ta.selectionStart, e: ta.selectionEnd }; }));
 document.addEventListener('selectionchange', () => { if (document.activeElement === ta) sel = { s: ta.selectionStart, e: ta.selectionEnd }; });
-function updateCount(){ $('#charCount').textContent = [...ta.value].length.toLocaleString() + '자'; }
+function updateCount(){ $('#charCount').textContent = [...ta.value].length.toLocaleString() + '자'; if (typeof saveDraft === 'function') saveDraft(); }
 ta.addEventListener('input', updateCount);
 
 
@@ -582,11 +593,46 @@ function setEditing(it){
   $('#compTitle').textContent = it ? '수정' : '';
   $('#cancelEdit').classList.toggle('hidden', !it);
   render();
+  saveDraft();
+}
+const DRAFT_KEY = 'ooc.draft.v1';
+let draftTimer;
+let draftReady = false, draftPending = false;
+function saveDraft(){
+  if (!draftReady) return;
+  clearTimeout(draftTimer);
+  draftTimer = setTimeout(() => {
+    const t = $('#fTitle').value, c = ta.value;
+    if (!t && !c) { try { localStorage.removeItem(DRAFT_KEY); } catch(e){} return; }
+    writeLS(DRAFT_KEY, { t, c, e: editingId });
+  }, 300);
+}
+ta.addEventListener('input', saveDraft);
+$('#fTitle').addEventListener('input', saveDraft);
+function restoreDraft(){
+  const d = readLS(DRAFT_KEY);
+  if (!d || !(d.t || d.c)) { draftReady = true; return; }
+  $('#dPreview').textContent = (d.t ? d.t + '\n' : '') + (d.c || '');
+  $('#draftBox').classList.add('show');
+  $('#dLoad').onclick = () => {
+    $('#draftBox').classList.remove('show');
+    const it = d.e ? items.find(i => i.id === d.e) : null;
+    if (it) setEditing(it);
+    $('#fTitle').value = d.t || '';
+    ta.value = d.c || '';
+    sel = { s: ta.value.length, e: ta.value.length };
+    draftReady = true; updateCount();
+  };
+  $('#dDrop').onclick = () => {
+    $('#draftBox').classList.remove('show');
+    try { localStorage.removeItem(DRAFT_KEY); } catch(e){}
+    draftReady = true;
+  };
 }
 $('#cancelEdit').onclick = () => setEditing(null);
 $('#clearBtn').onclick = () => {
   if (!ta.value && !$('#fTitle').value) return;
-  $('#fTitle').value = ''; ta.value = ''; updateCount(); sel = { s: 0, e: 0 }; ta.focus();
+  $('#fTitle').value = ''; ta.value = ''; updateCount(); sel = { s: 0, e: 0 }; saveDraft(); ta.focus();
 };
 $('#swapBtn').onclick = () => {
   const map = { '{{char}}': '{{user}}', '{{user}}': '{{char}}', 'NPC': 'PC', 'PC': 'NPC' };
@@ -833,6 +879,7 @@ function enterView(){
   if (wasHidden) window.scrollTo(0, 0);
 }
 function leaveView(){
+  if (draftPending) { draftPending = false; setTimeout(restoreDraft, 0); }
   publishing = false; viewPostId = null;
   $('#view').classList.remove('owner'); $('#pubPanel').classList.add('hidden');
   incoming = null; $('#viewBody').innerHTML = '';
@@ -1338,6 +1385,7 @@ $('#file').onchange = async e => {
   }
   render();
   checkHash();
+  if (!location.hash || location.hash === '#') restoreDraft(); else draftPending = true;
 })();
 </script>
 </body>
