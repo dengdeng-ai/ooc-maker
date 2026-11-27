@@ -1078,7 +1078,6 @@ function enterView(){
   if (wasHidden) window.scrollTo(0, 0);
 }
 function resetView(){
-  if (publishing) { try { sessionStorage.removeItem('ooc.pub.v1'); } catch(e){} }
   publishing = false; viewPostId = null;
   $('#view').classList.remove('owner'); $('#pubPanel').classList.add('hidden');
   incoming = null; $('#viewBody').innerHTML = '';
