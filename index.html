@@ -57,6 +57,10 @@
   .back svg{width:22px;height:22px}
   #view pre.detail{max-height:none}
   .vsub{margin-top:16px}
+  #view .vsub pre.detail{max-height:8.4em;overflow:hidden;position:relative}
+  #view .vsub pre.detail.long{cursor:pointer}
+  #view .vsub pre.detail.open{max-height:none}
+  #view .vsub pre.detail.long:not(.open)::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2.6em;background:linear-gradient(rgba(0,0,0,0),var(--bg))}
   .vsub-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:-4px}
   .vsub-name{font-weight:600;font-size:14px}
   .vsub .ib{margin-right:-6px}
@@ -1010,10 +1014,10 @@ function openShared(o){
     if (sn.length) html += `<div class="bar" style="margin-top:0"><button class="btn main" data-v="save">전부 내 OOC로 저장</button></div>`;
   }
   $('#viewBody').innerHTML = html;
-  document.querySelectorAll('#viewBody .body').forEach(b => { if (b.scrollHeight > b.clientHeight + 2) b.classList.add('long'); });
+  document.querySelectorAll('#viewBody .body, #viewBody .vsub pre.detail').forEach(b => { if (b.scrollHeight > b.clientHeight + 2) b.classList.add('long'); });
 }
 $('#viewBody').onclick = e => {
-  const body = e.target.closest('.body');
+  const body = e.target.closest('.body, .vsub pre.detail');
   if (body) { if (body.classList.contains('long')) body.classList.toggle('open'); return; }
   const btn = e.target.closest('[data-v]'); if (!btn || !incoming) return;
   if (btn.dataset.v === 'copy') {
