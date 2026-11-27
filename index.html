@@ -148,6 +148,7 @@
   .sub-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
   .sub-name{font-size:13px;font-weight:600;word-break:break-word}
   .sub .body{margin-top:2px}
+  #board{transition:opacity .2s}
   #board .body{max-height:4.7em}
   #board .body.open{max-height:none}
   .sub-list{display:flex;align-items:center;gap:6px;margin-top:8px;padding:8px 10px;border-radius:8px;background:var(--bg);color:var(--sub);font-size:13px;cursor:pointer;-webkit-user-select:none;user-select:none}
@@ -1396,7 +1397,13 @@ function goHome(){
 document.addEventListener('click', e => {
   const a = e.target.closest('a[href="#"]'); if (!a) return;
   e.preventDefault();
-  if (!location.hash && !$('#boardPage').classList.contains('hidden')) { window.scrollTo({ top: 0, behavior: 'smooth' }); loadBoard(false); return; }
+  if (!location.hash && !$('#boardPage').classList.contains('hidden')) {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    $('#board').style.opacity = '.4';
+    $('#boardReload').click();
+    setTimeout(() => { $('#board').style.opacity = ''; }, 350);
+    return;
+  }
   goHome();
 });
 window.addEventListener('popstate', checkHash);
