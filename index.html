@@ -945,11 +945,36 @@ async function buildLink(){
   if (seq !== linkSeq) return;
   linkUrl = url;
   const blocked = $('#lAdult').checked && !pw;
-  if (publishing) history.replaceState(null, '', blocked ? location.pathname + location.search : url);
+  if (publishing) { history.replaceState(null, '', blocked ? location.pathname + location.search : url); savePub(blocked ? '' : url.slice(url.indexOf('#'))); }
   $('#lCopy').disabled = $('#lShare').disabled = false;
 }
 let boardItems = null, linkPayload = null;
 let publishing = false, linkTitle = '';
+function savePub(key){
+  try {
+    sessionStorage.setItem('ooc.pub.v1', JSON.stringify({
+      key, payload: linkPayload, title: linkTitle,
+      note: $('#lNote').value, series: $('#lSeries').value, pw: $('#lPw').value, adult: $('#lAdult').checked
+    }));
+  } catch(e){}
+}
+async function restorePub(){
+  let d; try { d = JSON.parse(sessionStorage.getItem('ooc.pub.v1')); } catch(e){}
+  if (!d || !d.payload || (d.key || '') !== location.hash) return false;
+  linkPayload = d.payload; linkTitle = d.title || '';
+  boardItems = (d.payload.i && d.payload.i.length && !d.payload.s) ? d.payload.i : null;
+  $('#postRow').classList.toggle('hidden', !boardItems);
+  $('#lSeries').classList.toggle('hidden', !boardItems || boardItems.length < 2);
+  $('#lSeries').value = d.series || ''; $('#lNote').value = d.note || ''; $('#lPw').value = d.pw || '';
+  $('#lAdult').checked = !!d.adult; $('#lPw').placeholder = d.adult ? '비밀번호 (필수)' : '비밀번호 (선택)';
+  $('#lShare').classList.toggle('hidden', !navigator.share);
+  try { linkPacked = await pack(d.note ? { ...linkPayload, n: d.note.trim() } : linkPayload); } catch(e){ return false; }
+  linkUrl = location.href;
+  publishing = true;
+  $('#lCopy').disabled = $('#lShare').disabled = false;
+  previewPublish();
+  return true;
+}
 async function openLink(payload, title){
   boardItems = (payload.i && payload.i.length && !payload.s) ? payload.i : null;
   $('#postRow').classList.toggle('hidden', !boardItems);
@@ -1053,6 +1078,7 @@ function enterView(){
   if (wasHidden) window.scrollTo(0, 0);
 }
 function resetView(){
+  if (publishing) { try { sessionStorage.removeItem('ooc.pub.v1'); } catch(e){} }
   publishing = false; viewPostId = null;
   $('#view').classList.remove('owner'); $('#pubPanel').classList.add('hidden');
   incoming = null; $('#viewBody').innerHTML = '';
@@ -1518,6 +1544,7 @@ $('#postX').onclick = () => { if (viewPost) shareX(viewPost.title, viewPost.note
 async function checkHash(){
   const h = location.hash;
   try {
+    if (/^#[lep]=/.test(h) && !publishing && await restorePub()) return;
     if (h.startsWith('#l=')) await openShort(h.slice(3));
     else if (h.startsWith('#e=')) viewLocked(h.slice(3));
     else if (h.startsWith('#p=')) openShared(await unpack(h.slice(3)));
