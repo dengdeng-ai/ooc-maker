@@ -76,7 +76,7 @@
   .link:hover{color:var(--text)}
 
   input[type=text],input[type=search],input[type=email],input[type=password],textarea{-webkit-appearance:none;appearance:none;font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;min-width:0;outline:none}
-  input,textarea,select{font-size:16px!important}
+  @media (pointer:coarse), (max-width:480px){ input,textarea,select{font-size:16px!important} }
   input:focus,textarea:focus{border-color:var(--accent)}
   html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
   textarea{resize:vertical;min-height:240px;line-height:1.6;display:block}
@@ -163,6 +163,12 @@
   #list.selecting .item{cursor:pointer}
   .more-row{display:flex;gap:8px;margin-top:8px}
   .more-row .btn{flex:1}
+  .pager{display:flex;justify-content:center;align-items:center;gap:4px;margin-top:14px;flex-wrap:wrap}
+  .pg{min-width:32px;height:32px;padding:0 8px;border:0;border-radius:8px;background:none;color:var(--sub);font:inherit;font-size:14px;cursor:pointer}
+  .pg:hover:not(:disabled){background:var(--accent-soft)}
+  .pg.on{background:var(--accent);color:var(--on-accent);font-weight:600}
+  .pg:disabled{opacity:.3;cursor:default}
+  .pg-gap{color:var(--sub);padding:0 2px}
   .more{display:block;width:100%;margin-top:8px}
   .foot{text-align:center;margin-top:18px;font-size:12px}
   .foot .link{font-size:12px;opacity:.7}
@@ -289,7 +295,7 @@
     </div>
     <input type="search" id="bq" class="search hidden" placeholder="검색">
     <div id="board"></div>
-    <button class="btn sm more hidden" id="boardMore">더 보기</button>
+    <div class="pager hidden" id="pager"></div>
   </div>
   <div class="foot"><button class="link" id="adminIn">관리자 로그인</button></div>
 </div>
@@ -1068,7 +1074,8 @@ $('#lockBox').addEventListener('click', e => { if (e.target.id === 'lockBox') cl
 const SB_URL = 'https://qzftfgsfqwprbeznioqa.supabase.co';
 const SB_KEY = 'sb_publishable_b45_lLCMOjTgQs0zScsc0w_oYVdm9Q7';
 const MINE_KEY = 'ooc.mine.v1';
-const PAGE = 30;
+const PAGE = 10;
+let boardPageNo = 1, boardTotal = 0;
 let posts = [], boardBusy = false, boardEnd = false, boardSeq = 0, boardSort = 'new';
 const counted = readLS('ooc.counted.v1') || {};
 function countDownload(id){
@@ -1115,29 +1122,58 @@ async function sha256hex(str){
   return [...d].map(x => x.toString(16).padStart(2, '0')).join('');
 }
 
-async function loadBoard(more){
-  if (more && boardBusy) return;
+async function loadBoard(page){
+  if (typeof page === 'number') boardPageNo = page;
   const seq = ++boardSeq; boardBusy = true;
-  if (!more) { boardEnd = false; if (!posts.length) $('#board').innerHTML = '<div class="empty">불러오는 중입니다.</div>'; }
+  if (!posts.length) $('#board').innerHTML = '<div class="empty">불러오는 중입니다.</div>';
   try {
     const top = boardSort === 'top';
-    const before = more && posts.length ? (top ? '&offset=' + posts.length : '&id=lt.' + posts[posts.length - 1].id) : '';
     const q = $('#bq').value.trim();
     const quoted = '"*' + q.replace(/[\\"]/g, m => '\\' + m) + '*"';
     const filter = q ? '&or=' + encodeURIComponent(`(title.ilike.${quoted},and(locked.is.false,body.ilike.${quoted}))`) : '';
-    const rows = await sbRows(`/rest/v1/posts?select=id,title,body,adult,locked,count,note,downloads${admin ? ',reports' : ''}&order=${top ? 'downloads.desc,id.desc' : 'id.desc'}&limit=${PAGE}${before}${filter}`);
+    const tok = await authToken();
+    const res = await fetch(SB_URL + `/rest/v1/posts?select=id,title,body,adult,locked,count,note,downloads${admin ? ',reports' : ''}&order=${top ? 'downloads.desc,id.desc' : 'id.desc'}&limit=${PAGE}&offset=${(boardPageNo - 1) * PAGE}${filter}`, {
+      cache: 'no-store', headers: { apikey: SB_KEY, Prefer: 'count=exact', ...(tok ? { Authorization: 'Bearer ' + tok } : {}) }
+    });
+    if (!res.ok) throw new Error(res.status + ' ' + await res.text());
+    const rows = await res.json();
     if (seq !== boardSeq) return;
-    const opened = Object.fromEntries(posts.filter(p => p.open != null).map(p => [p.id, p.open]));
-    rows.forEach(r => { if (opened[r.id] != null) r.open = opened[r.id]; });
-    posts = more ? posts.concat(rows) : rows;
-    boardEnd = rows.length < PAGE;
+    const m = /\/(\d+)$/.exec(res.headers.get('content-range') || '');
+    boardTotal = m ? +m[1] : rows.length;
+    const pages = Math.max(1, Math.ceil(boardTotal / PAGE));
+    if (boardPageNo > pages && boardTotal) { boardBusy = false; return loadBoard(pages); }
+    const opened = Object.fromEntries(posts.filter(p => p.open != null).map(p => [p.id, [p.open, p.pw]]));
+    rows.forEach(r => { if (opened[r.id]) { r.open = opened[r.id][0]; r.pw = opened[r.id][1]; } });
+    posts = rows;
     renderBoard();
+    renderPager();
   } catch(e){
     if (seq !== boardSeq) return;
     if (!posts.length) $('#board').innerHTML = '<div class="empty">불러오지 못했습니다.</div>';
     else toast('불러오지 못했습니다.');
   } finally { if (seq === boardSeq) boardBusy = false; }
 }
+function renderPager(){
+  const pages = Math.max(1, Math.ceil(boardTotal / PAGE));
+  const box = $('#pager');
+  box.classList.toggle('hidden', pages <= 1);
+  if (pages <= 1) { box.innerHTML = ''; return; }
+  let a = Math.max(1, boardPageNo - 2), b = Math.min(pages, a + 4);
+  a = Math.max(1, b - 4);
+  const btn = (n, label, dis, cur) => `<button class="pg${cur ? ' on' : ''}" data-p="${n}"${dis ? ' disabled' : ''}>${label}</button>`;
+  let html = btn(boardPageNo - 1, '‹', boardPageNo === 1);
+  if (a > 1) html += btn(1, '1') + (a > 2 ? '<span class="pg-gap">…</span>' : '');
+  for (let n = a; n <= b; n++) html += btn(n, n, false, n === boardPageNo);
+  if (b < pages) html += (b < pages - 1 ? '<span class="pg-gap">…</span>' : '') + btn(pages, pages);
+  html += btn(boardPageNo + 1, '›', boardPageNo === pages);
+  box.innerHTML = html;
+}
+$('#pager').onclick = e => {
+  const b = e.target.closest('[data-p]'); if (!b || b.disabled) return;
+  const n = +b.dataset.p; if (n === boardPageNo) return;
+  posts = []; loadBoard(n);
+  $('#boardPage').scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
 
 function postList(p){
   if (p.locked) return p.open || null;
@@ -1148,7 +1184,6 @@ function postList(p){
   return [{ t: p.title, c: p.body }];
 }
 function renderBoard(){
-  $('#boardMore').classList.toggle('hidden', boardEnd || !posts.length);
   if (!posts.length) { $('#board').innerHTML = `<div class="empty">${$('#bq').value.trim() ? '검색 결과가 없습니다.' : '등록된 항목이 없습니다.'}</div>`; return; }
   $('#board').innerHTML = posts.map(p => {
     const list = postList(p);
@@ -1245,8 +1280,8 @@ $('#boardReload').onclick = () => {
   loadBoard(false);
 };
 let bqTimer;
-$('#bq').oninput = () => { clearTimeout(bqTimer); bqTimer = setTimeout(() => loadBoard(false), 350); };
-$('#bqBtn').onclick = () => toggleSearch($('#bqBtn'), $('#bq'), () => loadBoard(false));
+$('#bq').oninput = () => { clearTimeout(bqTimer); bqTimer = setTimeout(() => loadBoard(1), 350); };
+$('#bqBtn').onclick = () => toggleSearch($('#bqBtn'), $('#bq'), () => loadBoard(1));
 function openAdmin(){ $('#aPw').value = ''; $('#adminBox').classList.add('show'); setTimeout(() => $('#aEmail').focus(), 50); }
 function closeAdmin(){ $('#adminBox').classList.remove('show'); }
 async function adminLogin(){
@@ -1274,12 +1309,11 @@ $('#adminOut').onclick = async () => {
   setAdmin(null); toast('로그아웃되었습니다.'); loadBoard(false);
 };
 setAdmin(admin);
-$('#boardMore').onclick = () => loadBoard(true);
 $('#bsort').onclick = e => {
   const b = e.target.closest('[data-s]'); if (!b || b.dataset.s === boardSort) return;
   boardSort = b.dataset.s;
   document.querySelectorAll('#bsort .chip').forEach(c => c.classList.toggle('on', c === b));
-  posts = []; loadBoard(false);
+  posts = []; loadBoard(1);
 };
 
 $('#postBtn').onclick = async () => {
@@ -1400,7 +1434,7 @@ document.addEventListener('click', e => {
   if (!location.hash && !$('#boardPage').classList.contains('hidden')) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     $('#board').style.opacity = '.4';
-    $('#boardReload').click();
+    boardPageNo = 1; $('#boardReload').click();
     setTimeout(() => { $('#board').style.opacity = ''; }, 350);
     return;
   }
