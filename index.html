@@ -232,8 +232,7 @@
     </div>
     <div class="fields">
       <input type="text" id="fTitle" placeholder="제목 (선택)">
-      <input type="text" id="fCat" list="catList" maxlength="20" placeholder="카테고리">
-      <datalist id="catList"></datalist>
+      <input type="text" id="fCat" maxlength="20" placeholder="카테고리" autocomplete="off">
     </div>
     <div class="snips" id="snips"></div>
     <div class="snip-add hidden" id="snipAdd">
@@ -705,7 +704,6 @@ const NOCAT = '__none__';
 let catFilter = null;
 function renderCats(){
   const cats = [...new Set(items.map(i => i.cat).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
-  $('#catList').innerHTML = cats.map(c => `<option value="${esc(c)}">`).join('');
   if (catFilter && catFilter !== NOCAT && !cats.includes(catFilter)) catFilter = null;
   const hasNone = items.some(i => !i.cat);
   $('#cats').innerHTML = !cats.length ? '' : [`<button class="chip${!catFilter ? ' on' : ''}" data-cat="">전체</button>`]
