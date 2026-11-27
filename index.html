@@ -221,6 +221,7 @@
   .body.open{max-height:none}
   .body.long:not(.open)::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2.2em;background:linear-gradient(transparent,var(--card))}
   .item.cur .body.long:not(.open)::after{display:none}
+  .ib.rep{opacity:.55}
   .acts{display:flex;gap:2px;flex-shrink:0;margin:-4px -6px 0 0}
   .ib{border:0;background:none;color:var(--sub);cursor:pointer;padding:6px;border-radius:8px;display:flex}
   .ib svg{width:17px;height:17px}
@@ -460,7 +461,7 @@ const ICON = {
   edit: svg('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>'),
   del: svg('<path d="M5 7h14"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V4h6v3"/>'),
   lock: svg('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
-  flag: svg('<path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/>'),
+  flag: svg('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5.5"/><path d="M12 16.3v.2"/>'),
   swap: svg('<path d="M7 7h12"/><path d="M15 3l4 4-4 4"/><path d="M17 17H5"/><path d="M9 13l-4 4 4 4"/>'),
   search: svg('<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>'),
   reload: svg('<path d="M21 12a9 9 0 1 1-9-9c2.5 0 4.9 1 6.7 2.7L21 8"/><path d="M21 3v5h-5"/>'),
@@ -1500,7 +1501,7 @@ function renderBoard(){
                <button class="ib" data-act="keep" title="${multi ? '전부 북마크에 저장' : '북마크에 저장'}">${ICON.bm}</button>`}
           ${admin && p.reports ? `<button class="ib" data-act="restore" title="신고 초기화">${ICON.done}</button>` : ''}
           ${mine[p.id] ? `<button class="ib" data-act="edit" title="수정">${ICON.edit}</button>` : ''}
-          ${mine[p.id] || admin ? `<button class="ib del" data-act="del" title="삭제">${ICON.del}</button>` : `<button class="ib del" data-act="report" title="신고"${reported[p.id] ? ' disabled style="opacity:.35"' : ''}>${ICON.flag}</button>`}
+          ${mine[p.id] || admin ? `<button class="ib del" data-act="del" title="삭제">${ICON.del}</button>` : `<button class="ib del rep" data-act="report" title="신고"${reported[p.id] ? ' disabled style="opacity:.35"' : ''}>${ICON.flag}</button>`}
         </div>
       </div>
       ${shut ? '' : multi
