@@ -81,6 +81,7 @@
   textarea{resize:vertical;min-height:240px;line-height:1.6;display:block}
   @media (max-width:480px){ #fBody{min-height:150px;height:190px} }
   .fields{margin-bottom:8px;display:flex;gap:8px}
+  .fields #fNote{flex:1}
   .fields #fTitle{flex:1.6}
   .fields .catbox{flex:1;position:relative;min-width:0}
   .catbox input{padding-right:30px}
@@ -242,6 +243,9 @@
     <div class="fields">
       <input type="text" id="fTitle" placeholder="제목 (선택)">
       <div class="catbox"><input type="text" id="fCat" maxlength="20" placeholder="카테고리" autocomplete="off"><button type="button" class="cat-tg" id="catTg" tabindex="-1" aria-label="카테고리 목록"></button><div class="cat-menu hidden" id="catMenu"></div></div>
+    </div>
+    <div class="fields">
+      <input type="text" id="fNote" maxlength="100" placeholder="한 줄 설명 (선택)" autocomplete="off">
     </div>
     <div class="snips" id="snips"></div>
     <div class="snip-add hidden" id="snipAdd">
@@ -481,7 +485,8 @@ function normalize(o){
   if (!c.trim()) return null;
   const t = String(o.t ?? o.title ?? '').trim() || c.trim().split('\n')[0].slice(0, 30);
   const cat = String(o.cat ?? '').trim().slice(0, 20);
-  return { id: uid(), t, g: [], c, cat, at: Date.now() };
+  const note = String(o.n ?? o.note ?? '').trim().slice(0, 100);
+  return { id: uid(), t, g: [], c, cat, note, at: Date.now() };
 }
 
 let toastTimer;
@@ -648,6 +653,7 @@ $('#snipReset').onclick = () => { if (confirm('단축키를 기본값으로 되�
 function setEditing(it){
   editingId = it ? it.id : null;
   $('#fTitle').value = it ? it.t : '';
+  $('#fNote').value = it ? (it.note || '') : '';
   $('#fCat').value = it ? (it.cat || '') : $('#fCat').value;
   ta.value = it ? it.c : ''; updateCount();
   sel = { s: ta.value.length, e: ta.value.length };
@@ -693,7 +699,7 @@ function restoreDraft(){
 $('#cancelEdit').onclick = () => setEditing(null);
 $('#clearBtn').onclick = () => {
   if (!ta.value && !$('#fTitle').value) return;
-  $('#fTitle').value = ''; ta.value = ''; updateCount(); sel = { s: 0, e: 0 }; saveDraft(); ta.focus();
+  $('#fTitle').value = ''; $('#fNote').value = ''; ta.value = ''; updateCount(); sel = { s: 0, e: 0 }; saveDraft(); ta.focus();
 };
 $('#swapBtn').onclick = () => {
   const map = { '{{char}}': '{{user}}', '{{user}}': '{{char}}', 'NPC': 'PC', 'PC': 'NPC' };
@@ -711,11 +717,11 @@ $('#swapBtn').onclick = () => {
 };
 $('#copyNow').onclick = () => { if (ta.value.trim()) copyText(ta.value); };
 $('#saveBtn').onclick = () => {
-  const n = normalize({ t: $('#fTitle').value, c: ta.value, cat: $('#fCat').value });
+  const n = normalize({ t: $('#fTitle').value, c: ta.value, cat: $('#fCat').value, n: $('#fNote').value });
   if (!n) { toast('내용을 입력해 주세요.'); return; }
   if (editingId) {
     const it = items.find(i => i.id === editingId);
-    if (it) Object.assign(it, { t: n.t, g: n.g, c: n.c, cat: n.cat });
+    if (it) Object.assign(it, { t: n.t, g: n.g, c: n.c, cat: n.cat, note: n.note });
     else items.unshift(n);
   } else items.unshift(n);
   saveItems(); setEditing(null); toast('저장되었습니다.');
@@ -738,7 +744,7 @@ function visibleItems(){
   const q = $('#q').value.trim().toLowerCase();
   return items.filter(i =>
     (!catFilter || (catFilter === NOCAT ? !i.cat : i.cat === catFilter)) &&
-    (!q || (i.t + '\n' + i.c + '\n' + i.g.join(' ')).toLowerCase().includes(q))
+    (!q || (i.t + '\n' + i.c + '\n' + (i.note || '') + '\n' + (i.cat || '')).toLowerCase().includes(q))
   );
 }
 function render(){
@@ -765,6 +771,7 @@ function render(){
         ${selMode ? `<span class="cbox${selected.has(i.id) ? ' on' : ''}">${selected.has(i.id) ? order.indexOf(i.id) + 1 : ''}</span>` : ''}
         <div class="info">
           <div class="name">${esc(i.t)}</div>
+          ${i.note ? `<div class="note">${esc(i.note)}</div>` : ''}
         </div>
         <div class="acts${selMode ? ' hidden' : ''}">
           <button class="ib copy" data-act="copy" title="복사">${ICON.copy}</button>
@@ -1029,7 +1036,7 @@ $('#lAdult').addEventListener('change', () => {
 });
 
 const pick = ({ t, g, c }) => ({ t, g, c });
-function share(it){ openLink({ i: [pick(it)] }, it.t); }
+function share(it){ openLink({ i: [pick(it)] }, it.t).then(() => { if (it.note) { $('#lNote').value = it.note; $('#lNote').dispatchEvent(new Event('input')); } }); }
 function setSelMode(on){ selMode = on; selected.clear(); $('#shareList').classList.toggle('on', on); render(); }
 $('#shareList').onclick = () => {
   if (selMode) { setSelMode(false); return; }
@@ -1585,7 +1592,7 @@ function merge(list){
 }
 $('#exportBtn').onclick = () => {
   if (!items.length) { toast('백업할 OOC가 없습니다.'); return; }
-  const data = { app: 'ooc', version: 1, exported: new Date().toISOString(), snips, items: items.map(({ t, g, c, cat }) => ({ t, g, c, ...(cat ? { cat } : {}) })) };
+  const data = { app: 'ooc', version: 1, exported: new Date().toISOString(), snips, items: items.map(({ t, g, c, cat, note }) => ({ t, g, c, ...(cat ? { cat } : {}), ...(note ? { note } : {}) })) };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const d = new Date(), pad = n => String(n).padStart(2, '0');
   const a = document.createElement('a');
