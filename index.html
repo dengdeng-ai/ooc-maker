@@ -36,6 +36,7 @@
     --accent:#95afca; --accent-soft:#202a33; --on-accent:#14191e; --warn:#e0956a; --warn-soft:#3a2a20; --ok:#aec3d8; --ok-soft:#202a33;
   }
   *{box-sizing:border-box}
+  body,input,textarea,pre,button{font-variant-ligatures:none;font-feature-settings:"liga" 0,"calt" 0}
   body{margin:0;background:var(--bg);color:var(--text);
     font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard","Noto Sans KR","Malgun Gothic",sans-serif;
     font-size:14px;line-height:1.5}
@@ -55,6 +56,8 @@
   .back{display:flex;color:var(--text);margin-left:-6px;padding:4px}
   .back svg{width:22px;height:22px}
   #view pre.detail{max-height:none}
+  #viewBody > .card > .name, #viewBody > .card > .card-head .t{font-size:18px;font-weight:700;line-height:1.4}
+  #viewBody > .card > .card-head .t small{font-size:13px;font-weight:400}
   #view .snips{margin:0}
 
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
