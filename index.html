@@ -170,10 +170,10 @@
   .cbox{font-size:12px;font-weight:700;line-height:1}
   .cbox.on{background:var(--accent);border-color:var(--accent)}
   #list.selecting .item{cursor:pointer}
-  .more-row{display:flex;gap:8px;margin-top:8px}
-  .more-row .btn{flex:1}
   .pager{display:flex;justify-content:center;align-items:center;gap:4px;margin-top:14px;flex-wrap:wrap}
   .pg{min-width:32px;height:32px;padding:0 8px;border:0;border-radius:8px;background:none;color:var(--sub);font:inherit;font-size:14px;cursor:pointer}
+  #pager .pg{min-width:24px;padding:0 2px;font-size:13px}
+  #pager{gap:0}
   .pg:hover:not(:disabled){background:var(--accent-soft)}
   .pg.on{background:var(--accent);color:var(--on-accent);font-weight:600}
   .pg:disabled{opacity:.3;cursor:default}
@@ -283,7 +283,7 @@
     <div id="savedBody">
       <div class="cats" id="cats"></div>
       <div id="list"></div>
-      <div class="more-row"><button class="btn sm hidden" id="listLess">접기</button><button class="btn sm hidden" id="listMore">더 보기</button></div>
+      <div class="pager hidden" id="listPager"></div>
     </div>
   </div>
 
@@ -739,7 +739,7 @@ function renderCats(){
     .concat(hasNone ? [`<button class="chip${catFilter === NOCAT ? ' on' : ''}" data-cat="${NOCAT}">미분류</button>`] : [])
     .concat(catFilter && catFilter !== NOCAT ? [`<button class="chip cat-edit" data-catedit="1" title="카테고리 편집" aria-label="카테고리 편집">${ICON.edit}</button>`] : []).join('');
 }
-let listLimit = LIST_PAGE;
+let listPage = 1;
 function visibleItems(){
   const q = $('#q').value.trim().toLowerCase();
   return items.filter(i =>
@@ -753,10 +753,11 @@ function render(){
   $('#count').textContent = items.length + '개';
 
   const all = visibleItems();
-  const shown = all.slice(0, listLimit);
-  $('#listMore').classList.toggle('hidden', all.length <= listLimit);
-  $('#listLess').classList.toggle('hidden', listLimit <= LIST_PAGE || all.length <= LIST_PAGE);
-  $('#listMore').textContent = `더 보기 (${all.length - shown.length})`;
+  const lpages = Math.max(1, Math.ceil(all.length / LIST_PAGE));
+  if (listPage > lpages) listPage = lpages;
+  const shown = all.slice((listPage - 1) * LIST_PAGE, listPage * LIST_PAGE);
+  $('#listPager').innerHTML = pagerHtml(listPage, lpages);
+  $('#listPager').classList.toggle('hidden', lpages <= 1);
 
   if (!items.length) { $('#list').innerHTML = '<div class="empty">등록된 항목이 없습니다.</div>'; return; }
   if (!shown.length) { $('#list').innerHTML = '<div class="empty">검색 결과가 없습니다.</div>'; return; }
@@ -807,8 +808,13 @@ $('#list').onclick = e => {
     saveItems(); render(); toast('삭제되었습니다.');
   }
 };
-$('#q').oninput = () => { listLimit = LIST_PAGE; render(); };
-$('#listMore').onclick = () => { listLimit += LIST_PAGE; render(); };
+$('#q').oninput = () => { listPage = 1; render(); };
+$('#listPager').onclick = e => {
+  const b = e.target.closest('[data-p]'); if (!b || b.disabled) return;
+  const n = +b.dataset.p; if (n === listPage) return;
+  listPage = n; render();
+  $('#savedCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
 function allCats(){ return [...new Set(items.map(i => i.cat).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko')); }
 let catBlurTimer;
 function showCatMenu(all){
@@ -840,7 +846,7 @@ $('#cats').onclick = e => {
   if (e.target.closest('[data-catedit]')) { openCatEdit(catFilter); return; }
   const b = e.target.closest('[data-cat]'); if (!b) return;
   const c = b.dataset.cat || null;
-  catFilter = catFilter === c ? null : c; listLimit = LIST_PAGE; render();
+  catFilter = catFilter === c ? null : c; listPage = 1; render();
 };
 let catEditing = null;
 function openCatEdit(c){
@@ -869,7 +875,6 @@ $('#ceDel').onclick = () => {
   catFilter = null; saveItems(); closeCatEdit(); render(); toast('카테고리가 삭제되었습니다.');
 };
 $('#ceName').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); $('#ceSave').click(); } });
-$('#listLess').onclick = () => { listLimit = LIST_PAGE; render(); $('#savedCard').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
 function toggleSearch(btn, input, onClear){
   const show = input.classList.toggle('hidden') === false;
   btn.classList.toggle('on', show);
@@ -1289,20 +1294,20 @@ async function loadBoard(page){
     else toast('불러오지 못했습니다.');
   } finally { if (seq === boardSeq) boardBusy = false; }
 }
+function pagerHtml(cur, pages, win = 5){
+  if (pages <= 1) return '';
+  let a = Math.max(1, cur - Math.floor(win / 2)), b = Math.min(pages, a + win - 1);
+  a = Math.max(1, b - win + 1);
+  const btn = (n, label, dis, on) => `<button class="pg${on ? ' on' : ''}" data-p="${n}"${dis ? ' disabled' : ''}>${label}</button>`;
+  let html = btn(cur - 1, '‹', cur === 1);
+  for (let n = a; n <= b; n++) html += btn(n, n, false, n === cur);
+  html += btn(cur + 1, '›', cur === pages);
+  return html;
+}
 function renderPager(){
   const pages = Math.max(1, Math.ceil(boardTotal / PAGE));
-  const box = $('#pager');
-  box.classList.toggle('hidden', pages <= 1);
-  if (pages <= 1) { box.innerHTML = ''; return; }
-  let a = Math.max(1, boardPageNo - 2), b = Math.min(pages, a + 4);
-  a = Math.max(1, b - 4);
-  const btn = (n, label, dis, cur) => `<button class="pg${cur ? ' on' : ''}" data-p="${n}"${dis ? ' disabled' : ''}>${label}</button>`;
-  let html = btn(boardPageNo - 1, '‹', boardPageNo === 1);
-  if (a > 1) html += btn(1, '1') + (a > 2 ? '<span class="pg-gap">…</span>' : '');
-  for (let n = a; n <= b; n++) html += btn(n, n, false, n === boardPageNo);
-  if (b < pages) html += (b < pages - 1 ? '<span class="pg-gap">…</span>' : '') + btn(pages, pages);
-  html += btn(boardPageNo + 1, '›', boardPageNo === pages);
-  box.innerHTML = html;
+  $('#pager').classList.toggle('hidden', pages <= 1);
+  $('#pager').innerHTML = pagerHtml(boardPageNo, pages, 10);
 }
 $('#pager').onclick = e => {
   const b = e.target.closest('[data-p]'); if (!b || b.disabled) return;
