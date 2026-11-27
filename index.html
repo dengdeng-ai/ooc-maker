@@ -118,6 +118,13 @@
   .dl svg{width:12px;height:12px}
   .sortbar{display:flex;gap:6px;margin-bottom:4px}
   .sortbar .chip{font-size:12px;padding:3px 11px}
+  .top-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line);text-decoration:none;color:inherit}
+  .top-item:first-child{border-top:0;padding-top:0}
+  .top-item:last-child{padding-bottom:0}
+  .top-rank{width:18px;flex-shrink:0;font-weight:700;color:var(--ok);text-align:center}
+  .top-item .info{flex:1;min-width:0}
+  .top-item .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .top-item .note{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .badge.soft{background:var(--accent-soft);color:var(--ok)}
   .sub{margin-top:10px;padding-left:10px;border-left:2px solid var(--line)}
   .sub-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -219,6 +226,14 @@
       <button class="btn soft" id="copyNow">복사</button>
       <button class="btn main" id="saveBtn">저장</button>
     </div>
+  </div>
+
+  <div class="card hidden" id="topCard">
+    <div class="card-head">
+      <div class="t">인기 OOC</div>
+      <a class="link home" href="#board" style="font-size:13px">전체 보기</a>
+    </div>
+    <div id="topList"></div>
   </div>
 
   <div class="card" id="savedCard">
@@ -879,6 +894,7 @@ function enterView(){
   if (wasHidden) window.scrollTo(0, 0);
 }
 function leaveView(){
+  setTimeout(loadTop, 0);
   if (draftPending) { draftPending = false; setTimeout(restoreDraft, 0); }
   publishing = false; viewPostId = null;
   $('#view').classList.remove('owner'); $('#pubPanel').classList.add('hidden');
@@ -1079,6 +1095,22 @@ function postList(p){
     return [{ t: p.title, c: p.body }];
   }
   return [{ t: p.title, c: p.body }];
+}
+async function loadTop(){
+  try {
+    const rows = await sb('/rest/v1/posts?select=id,title,adult,locked,count,note,downloads&order=downloads.desc,id.desc&limit=3');
+    if (!rows || !rows.length) { $('#topCard').classList.add('hidden'); return; }
+    $('#topList').innerHTML = rows.map((p, i) => `
+      <a class="top-item" href="#post=${p.id}">
+        <span class="top-rank">${i + 1}</span>
+        <div class="info">
+          <div class="name">${p.adult ? '<span class="badge">성인</span>' : ''}${(p.count || 1) > 1 ? `<span class="badge soft">세트 ${p.count}</span>` : ''}${esc(p.title)}</div>
+          ${p.note ? `<div class="note">${esc(p.note)}</div>` : ''}
+        </div>
+        ${p.downloads ? `<span class="meta dl" style="margin:0">${ICON.save}${p.downloads}</span>` : (p.locked ? `<span class="meta" style="margin:0">${ICON.lock}</span>` : '')}
+      </a>`).join('');
+    $('#topCard').classList.remove('hidden');
+  } catch(e){ $('#topCard').classList.add('hidden'); }
 }
 function renderBoard(){
   $('#boardMore').classList.toggle('hidden', boardEnd || !posts.length);
@@ -1384,6 +1416,7 @@ $('#file').onchange = async e => {
     } catch(e){}
   }
   render();
+  loadTop();
   checkHash();
   if (!location.hash || location.hash === '#') restoreDraft(); else draftPending = true;
 })();
